@@ -518,6 +518,8 @@ https://stripe.com/en-ca/guides/pci-compliance#step-by-step-guide-to-pci-dss-v32
 - dds system working 
 - decentralized account working
 
+build website builder + dashboard
+
 
 clients:
 - Nordik sport: https://www.nordiksports.com/ ==> more customizable and cheaper

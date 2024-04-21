@@ -117,7 +117,7 @@ function Update() {
     //<Carding title="Token is out!" text="You can now buy our token on decentralize exchanges" link="" button="Buy!" />
     return(
     <section class="update">
-         {window.localStorage.getItem("language") == "fr" ? <h1>Ce que nous avons créé:</h1> : <h1>What we have created:</h1>}
+         {window.localStorage.getItem("language") == "fr" ? <h1>Ce que nous avons créé (voir: <a href="/products">nos produits</a> ): </h1> : <h1>What we have created (see: <a href="/products">our products</a> ):</h1>}
         <br />
         {window.localStorage.getItem("language") == "fr" ? <div class="row" style={{leftMargin: 50 + "px"}} >
             <Carding title="Une nouvelle passerelle de paiement" text="La passerelle de paiement CPL permet les transactions de tous les modes de paiement avec les frais les plus bas jamais vus" link="/" button="Connect with us!" image={payment}/>

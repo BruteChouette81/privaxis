@@ -36,17 +36,25 @@ function NewNavBar() {
             <li class="nav-item">
             {window.localStorage.getItem("language") == "fr" ? <a class="nav-link active" aria-current="page" href="/">Accueil</a> : <a class="nav-link active" aria-current="page" href="/">Home</a>}
             </li>
+
+            
             <li class="nav-item">
-            {window.localStorage.getItem("language") == "fr" ? <a class="nav-link" href="/about"> À propos</a> : <a class="nav-link" href="/about">About the project</a>}
+            {window.localStorage.getItem("language") == "fr" ? <a class="nav-link" href="/products"> Nos produits</a> : <a class="nav-link" href="/products">Our products</a>}
 
             </li>
             
             <li class="nav-item">
-              <a class="nav-link" href='/' >Whitepaper</a> 
+            {window.localStorage.getItem("language") == "fr" ? <a class="nav-link" href="/about"> À propos</a> : <a class="nav-link" href="/about">About</a>}
+
             </li>
+          
             <li class="nav-item">
             {window.localStorage.getItem("language") == "fr" ? <a class="nav-link" href="/contact">Nous contacter</a> : <a class="nav-link" href="/contact">Contact us</a>}
             
+            </li>
+
+            <li class="nav-item">
+            {window.localStorage.getItem("language") == "fr" ?  <div><button onClick={() => {window.location.replace("/websitebuilder")}} class="btn btn-outline-success me-2" style={{ float:"left", paddingLeft: 20 + "px", paddingRight: 20 + "px"}}>Construire son site gratuitement</button> </div>:  <div><button onClick={() => {window.location.replace("/websitebuilder")}} class="btn btn-outline-success me-2" style={{ float:"left", paddingLeft: 20 + "px", paddingRight: 20 + "px"}}>Free website builder</button></div>}
             </li>
             
           </ul>

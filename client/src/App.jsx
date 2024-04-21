@@ -17,6 +17,8 @@ import EndOfPage from './components/endofpage'
 import Liquidity from './components/liquidity';
 import Community from './components/community';
 import Whitepaper from './components/whitepaper';
+import Products from './components/products';
+import WebsiteBuilder from './components/websitebuilder';
 
 import Market from './components/market/market'
 import Seller from './components/friend/seller';
@@ -78,6 +80,8 @@ function App() {
               <Route path="/about" element={<Token/>}/>
               <Route path="/contact" element={<Community />} />
               <Route path="/whitepaper" element={<Whitepaper/>}/>
+              <Route path="/products" element={<Products/>}/>
+              <Route path="/websitebuilder" element={<WebsiteBuilder/>}/>
               
 
             </Routes>
