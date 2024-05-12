@@ -54,7 +54,7 @@ function NewNavBar() {
             </li>
 
             <li class="nav-item">
-            {window.localStorage.getItem("language") == "fr" ?  <div><button onClick={() => {window.location.replace("/websitebuilder")}} class="btn btn-outline-success me-2" style={{ float:"left", paddingLeft: 20 + "px", paddingRight: 20 + "px"}}>Construire son site gratuitement</button> </div>:  <div><button onClick={() => {window.location.replace("/websitebuilder")}} class="btn btn-outline-success me-2" style={{ float:"left", paddingLeft: 20 + "px", paddingRight: 20 + "px"}}>Free website builder</button></div>}
+            { window.localStorage.getItem("hasWallet") ?  window.localStorage.getItem("language") == "fr" ?  <div><button onClick={() => {window.location.replace("/seller/0")}} class="btn btn-outline-success me-2" style={{ float:"left", paddingLeft: 20 + "px", paddingRight: 20 + "px"}}>Votre site</button> </div> :  <div><button onClick={() => {window.location.replace("/seller/0")}} class="btn btn-outline-success me-2" style={{ float:"left", paddingLeft: 20 + "px", paddingRight: 20 + "px"}}>Your website</button> </div> : window.localStorage.getItem("language") == "fr" ?  <div><button onClick={() => {window.location.replace("/websitebuilder")}} class="btn btn-outline-success me-2" style={{ float:"left", paddingLeft: 20 + "px", paddingRight: 20 + "px"}}>Construire son site gratuitement</button> </div>:  <div><button onClick={() => {window.location.replace("/websitebuilder")}} class="btn btn-outline-success me-2" style={{ float:"left", paddingLeft: 20 + "px", paddingRight: 20 + "px"}}>Free website builder</button></div>}
             </li>
             
           </ul>

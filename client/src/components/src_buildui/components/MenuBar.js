@@ -37,11 +37,14 @@ const MenuBar = ({
     } = builder;
 
     const handleSave = () => {
+        var id = "id" + Math.random().toString(16).slice(2)
         const content = JSON.stringify(json());
+        //send it to ipfs with the id of the new created user, then redirect it to the seller's page
         const file = new Blob([content], {type: 'application/json'});
         const link = URL.createObjectURL(file);
         setSaveLink(link);
         setSaving(true);
+        window.location.replace("/seller/" + id)
     }
 
     const handleLoad = event => {

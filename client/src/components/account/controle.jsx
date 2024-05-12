@@ -10,7 +10,8 @@ import {DAppProvider, useLogs} from '@usedapp/core'
 import ReactLoading from "react-loading";
 import PayGas from "../F2C/gas/payGas";
 
-import * as IPFS from 'ipfs-core';  //IPSF to list nft metadata
+//import * as IPFS from 'ipfs-core';  //IPSF to list nft metadata
+
 
 import Chart2 from '../chart'
 
@@ -34,6 +35,8 @@ const DDSAddress = '0x2F810063f44244a2C3B2a874c0aED5C6c28D1D87'
 const NftAddress = '0x3d275ed3B0B42a7A3fCAA33458C34C0b5dA8Cc3A';
 const TicketAddress = '0x6CFADe18df81Cd9C41950FBDAcc53047EdB2e565' //goerli test contract
 const ImperialRealAddress = '0xbC1Fe9f6B298cCCd108604a0Cf140B2d277f624a'
+
+const IPFS = {}
 
 const connectContract = (address, abi, injected_prov) => { //for metamask
     const provider = new ethers.providers.Web3Provider(injected_prov);

@@ -30,6 +30,7 @@ import F2C from './components/F2C/F2C';
 //Amplify
 import { Amplify, Auth, Storage} from 'aws-amplify'; //import { Amplify, Auth, Storage } from 'aws-amplify'; - see manual config using auth and storage
 import awsmobile from './aws-exports';
+import SellerAccount from './components/account/sellerAccount';
 
 Amplify.configure(awsmobile);
 //
@@ -82,6 +83,7 @@ function App() {
               <Route path="/whitepaper" element={<Whitepaper/>}/>
               <Route path="/products" element={<Products/>}/>
               <Route path="/websitebuilder" element={<WebsiteBuilder/>}/>
+              <Route path="/seller/:id" element={<SellerAccount />}/>
               
 
             </Routes>
