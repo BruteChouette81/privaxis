@@ -33,7 +33,7 @@ const DDSADDr = '0x0c50409C167e974e4283F23f10BB21d16BE956A9';
 //3: dashboard with website: buy the domain or import one (depending on the provenance)
 
 function SellerAccount() {
-    const { id } = useParams();
+    let { id } = useParams();
     const [credit, setCredit] = useState()
     const [tether, setTether] = useState()
     const [did, setDid] = useState()
@@ -190,7 +190,7 @@ function SellerAccount() {
             
               
             window.localStorage.setItem("did", encrypted);
-            alert("Compte enregistré ! Bienvenue dans l'Atelier de Simon !")
+            alert("Compte enregistré ! Bienvenue sur les Technologies CPL!")
         }
 
         
@@ -290,7 +290,7 @@ function SellerAccount() {
            
             //let userwallet = new ethers.Wallet.fromEncryptedJson(response.privatekey, password)
 
-            let contract = getContract(userwallet, Credit, contractAddress)
+            let contract = getContract(userwallet, Credit.abi, contractAddress)
             
 
             setSigner(userwallet)
@@ -300,7 +300,7 @@ function SellerAccount() {
             //console.log(diD)
             //setDid(diD)
 
-            let AMMContract = getContract(userwallet, DDSABI, DDSADDr)
+            let AMMContract = getContract(userwallet, DDSABI.abi, DDSADDr)
             setAmm(AMMContract)
             setFirstConnect(false)
             setProfileLoading(false)
@@ -344,7 +344,7 @@ function SellerAccount() {
             //
 
 
-            let contract = getContract(userwallet, Credit, contractAddress)
+            let contract = getContract(userwallet, Credit.abi, contractAddress)
             
 
             setSigner(userwallet)
@@ -354,7 +354,7 @@ function SellerAccount() {
             //console.log(diD)
             //setDid(diD)
 
-            let AMMContract = getContract(userwallet, DDSABI, DDSADDr)
+            let AMMContract = getContract(userwallet, DDSABI.abi, DDSADDr)
             setAmm(AMMContract)
             setProfileLoading(false)
 
@@ -414,8 +414,10 @@ function SellerAccount() {
                     }
                     setNeedPassword(false)
                     if (id != res.website_id) {
-                        //window.location.reload("/seller/"+ res.website_id)
-                        console.log(res.website_id)
+                        window.location.replace("/seller/"+ res.website_id)
+                        //id = res.website_id
+                        //console.log(res.website_id)
+                        //reload_for_id()
                     }
                     
 
