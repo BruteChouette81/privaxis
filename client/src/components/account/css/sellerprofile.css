@@ -1,0 +1,82 @@
+
+
+.profile-info {
+    background-color: white;
+    background-image: none;
+    width: auto;
+    margin:0%;
+}
+
+.banner {
+    margin: 0%;
+}
+
+#profile_img {
+    height: 100px;
+    width:auto;
+}
+
+
+.itemsold {
+    background-color: white;
+    border-radius: 12px;
+    padding:20px;
+    background-image: none;
+    width: auto;
+    margin:0%;
+}
+
+.container {
+    max-width: 80%;
+}
+
+.upgradepopup {
+    background-color: white;
+    border-radius: 12px;
+    padding:20px;
+    background-image: none;
+    width: auto;
+    margin:0%;
+}
+
+.singleUpgrade {
+    padding:10px;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+.webChecker {
+    background-color: white;
+    border-radius: 12px;
+    padding:20px;
+    background-image: none;
+    width: auto;
+    margin:0%;
+}
+
+.payChart {
+    background-color: white;
+    border-radius: 12px;
+    padding:20px;
+    background-image: none;
+    width: auto;
+    margin:0%;
+}
+
+.bills {
+    background-color: white;
+    border-radius: 12px;
+    padding:20px;
+    background-image: none;
+    width: auto;
+    margin:0%;
+}
+
+.wallet {
+    background-color: white;
+    border-radius: 12px;
+    padding:20px;
+    background-image: none;
+    width: auto;
+    margin-top:20px;
+}

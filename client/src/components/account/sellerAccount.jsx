@@ -9,10 +9,31 @@ import { AES, enc } from "crypto-js"
 import default_profile from "./profile_pics/default_profile.png"
 import ReactLoading from "react-loading";
 
+import { unixfs } from '@helia/unixfs'
+import { createHelia } from 'helia'
+
+import './css/sellerprofile.css'
+
+import {
+    Chart as ChartJS,
+    CategoryScale,
+    BarElement,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    Tooltip,
+    Filler,
+    Legend,
+  } from 'chart.js';
+import { Line } from 'react-chartjs-2';
+import { Bar } from 'react-chartjs-2';
+
 
 import Credit from '../../artifacts/contracts/token.sol/credit.json';
 import DDSABI from '../../artifacts/contracts/DDS.sol/DDS.json'
 
+const website = "http://atelierdesimon.net/"
 
 const getContract = (signer, abi, address) => {
     // get the end user
@@ -22,8 +43,201 @@ const getContract = (signer, abi, address) => {
     return contract
 }
 
+const connectWIPFS = async() => {
+    // create a Helia node
+    console.log("connecting")
+    const helia = await createHelia()
+
+    // create a filesystem on top of Helia, in this case it's UnixFS
+    const fs = unixfs(helia)
+
+    // we will use this TextEncoder to turn strings into Uint8Arrays
+    const encoder = new TextEncoder()
+
+    // add the bytes to your node and receive a unique content identifier
+    const cid = await fs.addBytes(encoder.encode('Hello World 101'), {
+        onProgress: (evt) => {
+            console.info('add event', evt.type, evt.detail)
+        }
+    })
+
+    console.log('Added file:', cid.toString())
+}
+
 const contractAddress = '0x6CFADe18df81Cd9C41950FBDAcc53047EdB2e565';
 const DDSADDr = '0x0c50409C167e974e4283F23f10BB21d16BE956A9';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Filler,
+  Legend
+);
+
+const options = {
+  responsive: true,
+  plugins: {
+    legend: {
+      position: 'top',
+    },
+    title: {
+      display: true,
+      text: 'Amount of product sold by month',
+    },
+  },
+};
+
+const labels = ['January', 'February', 'March', 'April', 'May', 'June', 'July'];
+
+const data = {
+  labels,
+  datasets: [
+    {
+      fill: true,
+      label: 'Sales',
+      data: [87,115,318,256,308,219,378],
+      borderColor: 'rgb(53, 162, 235)',
+      backgroundColor: 'rgba(53, 162, 235, 0.5)',
+    },
+  ],
+};
+
+const ItemChart = () => {
+    return (
+        <div class="itemsold">
+            <p>Total: <strong>7647</strong> orders</p>
+            <Line options={options} data={data} />
+        </div>
+    )
+}
+
+const SingleUpgrade = (props) => {
+    return (
+        <div class="singleUpgrade" style={{"backgroundColor":props.color, "color":"white"}}>
+            <a href={props.link} style={{"color":'white'}}>{props.upgrade}</a>
+
+        </div>
+    )
+}
+
+const UpgradePopup = () => {
+    return (
+        <div class="upgradepopup">
+            <p>Upgrades</p>
+            <SingleUpgrade color="red" upgrade="Web Designer" link="/" />
+            <SingleUpgrade color="blue" upgrade="SEO" link="/" />
+            <SingleUpgrade color="green" upgrade="Marketing Specialist" link="/" />
+        </div>
+    )
+}
+
+const WebsiteChecker = () => {
+    const [liveCheck, setLiveCheck] = useState(true)
+
+    useEffect(() => {
+        async function getWebsite() {
+            try {
+                const response = await fetch(website, {
+                    method: "GET", // *GET, POST, PUT, DELETE, etc.
+                    mode: "no-cors", // no-cors, *cors, same-origin
+                    headers: {
+                        "Content-Type": "application/json"
+                },
+                });
+                console.log(response)
+            } catch (error) {
+                setLiveCheck(false)
+                
+            }
+        }
+
+        
+        getWebsite()
+            
+       
+        
+       
+    }, [setLiveCheck])
+    return (
+        <div class="webChecker">
+            {liveCheck ?<p style={{"color":"green"}}>Your website is live</p> : <p style={{"color":"red"}}>Your website is down</p> }
+            <a href={website}>{website}</a> {liveCheck ? <img src="http://clipart-library.com/images_k/green-check-mark-icon-transparent-background/green-check-mark-icon-transparent-background-10.png" alt="" style={{"float":"right", "height":"20px", "width":"auto"}}/>: <img src="https://cdn.picpng.com/exit/x-exit-button-icon-symbol-66209.png" alt="" style={{"float":"right", "height":"20px", "width":"auto"}} />}
+            <br />
+            <p> <strong> Explore and modify your pages</strong></p>
+            <a href="">www.store.com/home </a>
+            <br />
+            <a href="">www.store.com/about</a>
+            <br />
+            <a href="">www.store.com/store</a>
+
+            <button class="btn btn-primary" onClick={() => {connectWIPFS()}}>Connect to IPFS</button>
+        </div>
+    )
+}
+
+const options2 = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top',
+      },
+      title: {
+        display: true,
+        text: 'Your payments by month',
+      },
+    },
+  };
+  
+  
+const data2 = {
+    labels,
+    datasets: [
+      {
+        label: 'Payments',
+        data: [87,115,318,256,308,219,378],
+        backgroundColor: 'rgba(255, 99, 132, 0.5)',
+      },
+    ],
+  };
+  
+
+const PaymentChart = () => {
+    return (
+        <div class="payChart">
+            <p>Total: <strong>108.1k</strong> $</p>
+            <Bar options={options2} data={data2} />
+        </div>
+    )
+}
+
+const Bills = () => {
+    return (
+        <div class="bills">
+            <p>list of your bills</p>
+            <p>Hosting:             0$</p>
+            <p>A*2200 - Service:    1,300$</p>
+            <p>A*2200 - Service:    900$</p>
+            <p>CPL fees:            8,900$</p>
+            <p> <strong>Total: 11,100$</strong></p>
+            <button class="btn btn-primary">Change Billing Infos</button>
+        </div>
+    )
+}
+
+const CPLWallet = () => {
+    return (
+        <div class="wallet">
+            <h6>Your wallet:</h6>
+            <p>Total: <strong>223.2k $</strong> <p style={{"color":"green", "float":"right"}}>+8.9%</p></p>
+            <p>Average fee paid: <strong style={{"color":"red"}}>1.8%</strong></p>
+        </div>
+    )
+}
 
 
 
@@ -484,20 +698,50 @@ function SellerAccount() {
             profileLoading ? (<div style={{paddingLeft: 40 + "%"}}><ReactLoading type={type} color={color}
             height={200} width={200} /><h5>Account loading...</h5></div>) : 
             <div class='selleraccount'>
-                <div class='settingdiv'>
-                </div>
-                <div class='banner' style={{backgroundColor: back}}>
-                    <img alt="" src={default_profile} id="profile_img" style={{backgroundColor: img}} />
-                </div>
-                <div class="profile-info">
-                    <h4 id="profile-info-tag">Information du compte:</h4>
-                    <p>Id: {id}</p>
-                    <p>Address: {signer.address}</p>
+               
+                <div class="container">
+                <div class="row">
+                    <div class="col">
+                        <div class='banner' style={{backgroundColor: back}}>
+                            <img alt="" src={default_profile} id="profile_img" style={{backgroundColor: img}} />
+                        </div>
+                        <div class="profile-info">
+                        <h4 id="profile-info-tag">Information du compte:</h4>
+                        <p>Id: {id}</p>
+                        <p>Welcome: {fullname}</p>
                     
                     
+                        </div>
+                        <CPLWallet/>
+                        </div>
+                        <div class="col-6">
+                        <ItemChart/>
+                        </div>
+                        <div class="col">
+                        <UpgradePopup/>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col">
+                        <WebsiteChecker/>
+                        </div>
+                        <div class="col-6">
+                        <PaymentChart/>
+                        </div>
+                        <div class="col">
+                        <Bills/>
+                        </div>
+                    
+               
+               
+
                 </div>
                 
-                <br />
+               
+                
+                
+               
+                </div>
                 
 
                 
