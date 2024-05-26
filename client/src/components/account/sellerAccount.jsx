@@ -7,10 +7,20 @@ import { API } from 'aws-amplify';
 
 import { AES, enc } from "crypto-js"
 import default_profile from "./profile_pics/default_profile.png"
+//import testWebsite from './test.html'
 import ReactLoading from "react-loading";
 
+import { noise } from '@chainsafe/libp2p-noise'
+import { yamux } from '@chainsafe/libp2p-yamux'
 import { unixfs } from '@helia/unixfs'
+import { bootstrap } from '@libp2p/bootstrap'
+import { identify } from '@libp2p/identify'
+import { tcp } from '@libp2p/tcp'
+import { MemoryBlockstore } from 'blockstore-core'
+import { MemoryDatastore } from 'datastore-core'
 import { createHelia } from 'helia'
+import { createLibp2p } from 'libp2p'
+
 
 import './css/sellerprofile.css'
 
@@ -34,6 +44,7 @@ import Credit from '../../artifacts/contracts/token.sol/credit.json';
 import DDSABI from '../../artifacts/contracts/DDS.sol/DDS.json'
 
 const website = "http://atelierdesimon.net/"
+//const blockstore = new MemoryBlockstore()
 
 const getContract = (signer, abi, address) => {
     // get the end user
@@ -43,25 +54,113 @@ const getContract = (signer, abi, address) => {
     return contract
 }
 
-const connectWIPFS = async() => {
+async function createNode () {
+    // the blockstore is where we store the blocks that make up files
+    const blockstore = new MemoryBlockstore()
+  
+    // application-specific data lives in the datastore
+    const datastore = new MemoryDatastore()
+  
+    // libp2p is the networking layer that underpins Helia
+    const libp2p = await createLibp2p({
+      datastore,
+      addresses: {
+        listen: [
+          '/ip4/127.0.0.1/tcp/0'
+        ]
+      },
+      transports: [
+        tcp()
+      ],
+      connectionEncryption: [
+        noise()
+      ],
+      streamMuxers: [
+        yamux()
+      ],
+      peerDiscovery: [
+        bootstrap({
+          list: [
+            '/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
+            '/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
+            '/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb',
+            '/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt'
+          ]
+        })
+      ],
+      services: {
+        identify: identify()
+      }
+    })
+  
+    return await createHelia({
+      datastore,
+      blockstore,
+      libp2p
+    })
+  }
+
+
+const connectWIPFS = async(e) => {
+    //https://discuss.ipfs.tech/t/how-to-retrieve-content-uploaded-via-helia-using-the-ipfs-gateway/16582
+    e.preventDefault()
     // create a Helia node
     console.log("connecting")
-    const helia = await createHelia()
+    console.log(e.target[0].files[0])
+    const reader = new FileReader();
+    let array;
+    reader.readAsArrayBuffer(e.target[0].files[0]);
+    reader.onloadend = async (evt) => {
+    if (evt.target.readyState === FileReader.DONE) {
+        const arrayBuffer = evt.target.result
+        array = new Uint8Array(arrayBuffer);
+        //console.log(array)
+        const helia = await createNode()
+        const fs = unixfs(helia)
+        const cid = await fs.addBytes(array, {
+            onProgress: (evnt) => {
+                console.info('add event', evnt.type, evnt.detail)
+            }
+        })
+    
+        console.log('Added file:', cid.toString())
+    }}
+    
+    //
 
     // create a filesystem on top of Helia, in this case it's UnixFS
-    const fs = unixfs(helia)
+    //
 
     // we will use this TextEncoder to turn strings into Uint8Arrays
-    const encoder = new TextEncoder()
+    //const encoder = new TextEncoder()
+    //console.log(encoder.encode('hello world'))
 
     // add the bytes to your node and receive a unique content identifier
+    //
+    /**function readFileDataAsBase64(e) {
+    const file = e.target.files[0];
+
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = (event) => {
+            resolve(event.target.result);
+        };
+
+        reader.onerror = (err) => {
+            reject(err);
+        };
+
+        reader.readAsDataURL(file);
+    });
+} 
     const cid = await fs.addBytes(encoder.encode('Hello World 101'), {
         onProgress: (evt) => {
             console.info('add event', evt.type, evt.detail)
         }
     })
 
-    console.log('Added file:', cid.toString())
+    console.log('Added file:', cid.toString())*/
 }
 
 const contractAddress = '0x6CFADe18df81Cd9C41950FBDAcc53047EdB2e565';
@@ -175,7 +274,10 @@ const WebsiteChecker = () => {
             <br />
             <a href="">www.store.com/store</a>
 
-            <button class="btn btn-primary" onClick={() => {connectWIPFS()}}>Connect to IPFS</button>
+            <form onSubmit={connectWIPFS}>
+                <input type="file" name="webtester" id="" />
+                <button type='submit' class="btn btn-primary">Connect to IPFS</button>
+            </form>
         </div>
     )
 }
