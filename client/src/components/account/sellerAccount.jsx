@@ -15,7 +15,7 @@ import { yamux } from '@chainsafe/libp2p-yamux'
 import { unixfs } from '@helia/unixfs'
 import { bootstrap } from '@libp2p/bootstrap'
 import { identify } from '@libp2p/identify'
-import { tcp } from '@libp2p/tcp'
+import { webSockets } from '@libp2p/websockets'
 import { MemoryBlockstore } from 'blockstore-core'
 import { MemoryDatastore } from 'datastore-core'
 import { createHelia } from 'helia'
@@ -62,15 +62,10 @@ async function createNode () {
     const datastore = new MemoryDatastore()
   
     // libp2p is the networking layer that underpins Helia
-    const libp2p = await createLibp2p({
+    const libp2p = await createLibp2p({ //Websocket(ws://cpltechnologies.com/websocketserver)
       datastore,
-      addresses: {
-        listen: [
-          '/ip4/127.0.0.1/tcp/0'
-        ]
-      },
       transports: [
-        tcp()
+        webSockets() //{ filter: filters.all}
       ],
       connectionEncryption: [
         noise()
@@ -80,7 +75,7 @@ async function createNode () {
       ],
       peerDiscovery: [
         bootstrap({
-          list: [
+          list: [ //connect to main peers
             '/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
             '/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
             '/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb',
@@ -116,6 +111,7 @@ const connectWIPFS = async(e) => {
         array = new Uint8Array(arrayBuffer);
         //console.log(array)
         const helia = await createNode()
+        console.log(helia.libp2p) //.getMultiaddrs()
         const fs = unixfs(helia)
         const cid = await fs.addBytes(array, {
             onProgress: (evnt) => {
