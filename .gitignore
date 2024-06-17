@@ -23,12 +23,13 @@ yarn-debug.log*
 yarn-error.log*
 
 #amplify-do-not-edit-begin
-amplify/\#current-cloud-backend
-amplify/.config/local-*
-amplify/logs
-amplify/mock-data
-amplify/backend/amplify-meta.json
-amplify/backend/.temp
+client/amplify/\#current-cloud-backend
+client/amplify/.config/local-*
+client/amplify/logs
+client/amplify/mock-data
+client/amplify/backend/amplify-meta.json
+client/amplify/backend/.temp
+server/node_modules/
 build/
 dist/
 node_modules/

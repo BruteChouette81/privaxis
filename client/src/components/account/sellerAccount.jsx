@@ -14,8 +14,10 @@ import { noise } from '@chainsafe/libp2p-noise'
 import { yamux } from '@chainsafe/libp2p-yamux'
 import { unixfs } from '@helia/unixfs'
 import { bootstrap } from '@libp2p/bootstrap'
+import { multiaddr } from '@multiformats/multiaddr'
 import { identify } from '@libp2p/identify'
 import { webSockets } from '@libp2p/websockets'
+import {all} from '@libp2p/websockets/filters'
 import { MemoryBlockstore } from 'blockstore-core'
 import { MemoryDatastore } from 'datastore-core'
 import { createHelia } from 'helia'
@@ -39,6 +41,8 @@ import {
 import { Line } from 'react-chartjs-2';
 import { Bar } from 'react-chartjs-2';
 
+import PaymentsAccount from "./payments_account"
+
 
 import Credit from '../../artifacts/contracts/token.sol/credit.json';
 import DDSABI from '../../artifacts/contracts/DDS.sol/DDS.json'
@@ -60,20 +64,19 @@ async function createNode () {
   
     // application-specific data lives in the datastore
     const datastore = new MemoryDatastore()
+
+    //create a websocket server
+    //const wss = new WebSocket.Server({ server });
+
+    //let socket = new WebSocket("ws://127.0.0.1");
+    //console.log(socket)
   
     // libp2p is the networking layer that underpins Helia
-    const libp2p = await createLibp2p({ //Websocket(ws://cpltechnologies.com/websocketserver)
-      datastore,
-      transports: [
-        webSockets() //{ filter: filters.all}
-      ],
-      connectionEncryption: [
-        noise()
-      ],
-      streamMuxers: [
-        yamux()
-      ],
-      peerDiscovery: [
+    //addresses: {
+    //listen: ['/ip4/127.0.0.1/tcp/3000/ws']
+    //},
+    /*
+    peerDiscovery: [
         bootstrap({
           list: [ //connect to main peers
             '/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
@@ -86,6 +89,32 @@ async function createNode () {
       services: {
         identify: identify()
       }
+      streamMuxers: [
+        yamux()
+      ],
+       addresses: {
+        listen: ['/ip4/127.0.0.1/ws']
+        },
+    */
+    const libp2p = await createLibp2p({ //Websocket(ws://cpltechnologies.com/websocketserver)
+      datastore,
+      transports: [
+        webSockets( {
+            filter: all
+        }) //{ filter: filters.all}
+      ],
+      connectionEncryption: [
+        noise()
+      ],
+      connectionGater: {
+        denyDialMultiaddr: () => false // this is necessary to dial local addresses at all
+      },
+      services: {
+        identify: identify({protocolPrefix: 'ipfs'})
+      }
+      
+      
+      
     })
   
     return await createHelia({
@@ -111,7 +140,10 @@ const connectWIPFS = async(e) => {
         array = new Uint8Array(arrayBuffer);
         //console.log(array)
         const helia = await createNode()
-        console.log(helia.libp2p) //.getMultiaddrs()
+        let ma = multiaddr("/ip4/127.0.0.1/tcp/8080/ws")
+        console.log(ma)
+        await helia.libp2p.dial(ma)
+        console.log(helia.libp2p.getConnections()) //.getMultiaddrs()
         const fs = unixfs(helia)
         const cid = await fs.addBytes(array, {
             onProgress: (evnt) => {
@@ -304,10 +336,11 @@ const data2 = {
   };
   
 
-const PaymentChart = () => {
+const PaymentChart = (props) => {
     return (
         <div class="payChart">
-            <p>Total: <strong>108.1k</strong> $</p>
+            <p><button type="button" class="btn btn-link" onClick={() => {props.setDisplay(true)}}>Money</button>received: <strong>108.1k</strong> $</p>
+            <p>Fee paid: 5.8k $</p>
             <Bar options={options2} data={data2} />
         </div>
     )
@@ -385,6 +418,8 @@ function SellerAccount() {
     const [code, setCode] = useState("")
     const [phone, setPhone] = useState("")
     const [emailC, setEmailC] = useState(true)
+
+    const [displayPayments, setDisplaypayments] = useState(false)
 
     const type = "spin"
     const color = "#0000FF"
@@ -766,7 +801,7 @@ function SellerAccount() {
         
     }, [])
         return(
-            needPassword ? <GetPassword /> : firstConnect ? ( <div class="DidBuilding">
+            displayPayments ? <PaymentsAccount setDisplay={setDisplaypayments}/> : needPassword ? <GetPassword /> : firstConnect ? ( <div class="DidBuilding">
             <p>You can always delete any DiD ( <a href=""> see our security policy</a>) </p>
                                 <form onSubmit={saveId}>
                                 <input type="text" id="fname" name="fname" class="form-control" placeholder="First Name : Thomas" onChange={onFnameChanged}/>
@@ -824,7 +859,7 @@ function SellerAccount() {
                         <WebsiteChecker/>
                         </div>
                         <div class="col-6">
-                        <PaymentChart/>
+                        <PaymentChart setDisplay={setDisplaypayments}/>
                         </div>
                         <div class="col">
                         <Bills/>

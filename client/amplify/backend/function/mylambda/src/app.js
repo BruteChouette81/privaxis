@@ -333,7 +333,8 @@ app.post('/connection', (req, res) => {
               description: "",
               level: 0, //set as basic
               payment: [],
-              realPurchase: []
+              realPurchase: [],
+              device_id: ""
             }
           }
           console.log(create_params)
@@ -1184,6 +1185,59 @@ app.post("/getproofdata", async(req, res) => {
     res.send("error code - 332")
   }
   
+})
+
+app.post("/connect_terminal", (req, res) => {
+  //webhook
+  /**{
+      "merchant_id": "7NZR58EPNGNPC",
+      "location_id": "AR63EC48VXVBN",
+      "type": "device.code.paired",
+      "event_id": "84ccdb8a-da90-4b14-b6b0-c5a5abbccfe6",
+      "created_at": "2020-04-10T14:41:58.036Z",
+      "data": {
+        "type": "device_code",
+        "id": "05NK80TRSC2ZF",
+        "object": {
+          "device_code": {
+            "code": "ABCDEF",
+            "created_at": "2020-04-10T14:41:20.000Z",
+            "device_id": "907CS13101300122",
+            "id": "05NK80TRSC2ZF",
+            "location_id": "AR63EC48VXVBN",
+            "name": "Terminal API Device created on Apr 10, 2020",
+            "paired_at": "2020-04-10T14:41:50.000Z",
+            "product_type": "TERMINAL_API",
+            "status": "PAIRED",
+            "status_changed_at": "2020-04-10T14:41:50.000Z"
+          }
+        }
+      }
+    } */
+  //save this
+  console.log(req.body.data.device_code.device_id)
+  const backparams = {
+    TableName: tableName,
+    Key: {
+      users: req.body.account,
+    },
+    //ExpressionAttributeNames: { '#bg': 'bg' },
+    ExpressionAttributeValues: {},
+    ReturnValues: 'UPDATED_NEW',
+    };
+    backparams.UpdateExpression = 'SET '
+    backparams.ExpressionAttributeValues[':device_id'] = req.body.background;
+    backparams.UpdateExpression += 'device_id = :device_id'
+
+    dynamodb.update(backparams, (error, result) => {
+        if (error) {
+          console.log(error.message);
+          res.json({error: error.message, params: backparams})
+        }
+        else {
+          res.send("done")
+        }
+    });
 })
 
 // Export the app object. When executing the application local this does nothing. However,
