@@ -12,6 +12,7 @@
     "express": "^4.15.2",
     "moralis": "^2.22.3",
     "moralis-v1": "^1.11.0",
+    "node-fetch": "^2.7.0",
     "node-schedule": "^2.1.0"
   },
   "devDependencies": {

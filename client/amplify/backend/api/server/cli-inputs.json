@@ -112,6 +112,20 @@
       "permissions": {
         "setting": "open"
       }
+    },
+    "/getcode": {
+      "name": "/getcode",
+      "lambdaFunction": "mylambda",
+      "permissions": {
+        "setting": "open"
+      }
+    },
+    "/connectterminal": {
+      "name": "/connectterminal",
+      "lambdaFunction": "mylambda",
+      "permissions": {
+        "setting": "open"
+      }
     }
   }
 }

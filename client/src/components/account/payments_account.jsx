@@ -1,7 +1,35 @@
 
 import axios from "axios"
 import { useState } from "react"
+import {
+    Chart as ChartJS,
+    CategoryScale,
+    BarElement,
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    Tooltip,
+    Filler,
+    Legend,
+  } from 'chart.js';
+import { Line } from 'react-chartjs-2';
+import { API } from "aws-amplify";
 
+
+
+ChartJS.register(
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    BarElement,
+    Title,
+    Tooltip,
+    Filler,
+    Legend
+  );
+  
 const AllPayments = () => {
     return (<div className="payChart">
                 <h2>Total: <strong>115.3k</strong></h2>
@@ -9,10 +37,68 @@ const AllPayments = () => {
 }
 
 const AllWallet = () => {
+    const [feered, setFeered] = useState(true)
+    const activateFeeRed = () => {
+        console.log("activated")
+        setFeered(!feered)
+    }
     return (<div className="payChart">
     <h2>Money in App: <strong>220.1k</strong></h2>
+    <div class="form-check form-switch">
+    <input class="form-check-input" type="checkbox" id="flexSwitchCheckChecked" onChange={()=> {activateFeeRed()}} checked={feered}/>
+    <label class="form-check-label" for="flexSwitchCheckChecked">Fee reduction system</label>
+    </div>
+   
 </div>)
 }
+
+const options = {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'top',
+      },
+      title: {
+        display: true,
+        text: 'Amount of money received/sent',
+      },
+    },
+  };
+  
+  const labels = ['January', 'February', 'March', 'April', 'May', 'June', 'July'];
+  
+  const data = {
+    labels,
+    datasets: [
+      {
+        fill: true,
+        label: 'Sales',
+        data: [87,115,318,256,308,219,378],
+        borderColor: 'rgb(53, 162, 235)',
+        backgroundColor: 'rgba(53, 162, 235, 0.5)',
+      },
+    ],
+  };
+  
+const MoneyInChart = () => {
+      return (
+          <div class="itemsold">
+              <p>Money in: <strong>115.1k</strong> $</p>
+              <Line options={options} data={data} />
+          </div>
+      )
+}
+
+const MoneyOutChart = () => {
+    return (
+        <div class="itemsold">
+            <p>Money out: <strong>30.2k</strong> $</p>
+            <Line options={options} data={data} />
+        </div>
+    )
+}
+
+
 
 
 function PaymentsAccount(props) {
@@ -28,25 +114,58 @@ function PaymentsAccount(props) {
         // "location_id": "NHT...CGJ" create a real location for each client
         setCreating(true)
         const params = {
-            "headers": {
-                'content-type': 'application/json',
+            method:"post",
+            headers: {
+               
+                'Authorization': 'Bearer EAAAlwEUS-f0w6Gclw4A2IYcslFl5teIZyYbTW3JWhyGmfau4av6UpU_koIkCRzX',
+                'Content-Type': 'application/json',
                 'Square-Version': '2024-06-04',
-                'Authorization': 'Bearer EAAAlwEUS-f0w6Gclw4A2IYcslFl5teIZyYbTW3JWhyGmfau4av6UpU_koIkCRzX'
+                
                 },
-            "body":{ 
+            body:{ 
                 "idempotency_key": "123-456-789", //uuid
                 "device_code": {
                     "name": "Terminal 1",
+                    "location_id": "LCE9JT6P77K6W",
                     "product_type": "TERMINAL_API",
                     }
                 }
             }
-        axios.post("https://connect.squareup.com/v2/devices/codes", params).then((res) => {
-            setDcode(res.code)
+        var data = {
+            body: {
+                url: "https://connect.squareupsandbox.com/v2/devices/codes",
+                data: {
+                    method:"post",
+                    headers: {
+                       
+                        'Authorization': 'Bearer EAAAlwEUS-f0w6Gclw4A2IYcslFl5teIZyYbTW3JWhyGmfau4av6UpU_koIkCRzX',
+                        'Content-Type': 'application/json',
+                        'Square-Version': '2024-06-04',
+                        
+                        },
+                    body: JSON.stringify({ 
+                        "idempotency_key": "123-456-789", //uuid
+                        "device_code": {
+                            "name": "Terminal 1",
+                            "location_id": "LCE9JT6P77K6W",
+                            "product_type": "TERMINAL_API",
+                            }
+                        })
+                    },
+            }
+        }
+        API.post('server',"/getcode", data).then((res) => {
+            console.log(res.device_code.code)
+            setDcode(res.device_code.code)
+            setCreating(false)
+        })
+        /*
+        axios.post("https://connect.squareupsandbox.com/v2/devices/codes", params).then((res) => { //https://connect.squareup.com/v2/devices/codes
+            //setDcode(res.code)
             console.log(res)
             setCreating(false)
 
-        })
+        })*/
     }
 
     const get_paired_device = () => {
@@ -177,10 +296,10 @@ function PaymentsAccount(props) {
                 </div>
                 <div class="row">
                     <div class="col">
-                        <ConnectTerminal/>
+                        <MoneyInChart/>
                     </div>
                     <div class="col">
-                        <ConnectTerminal/>
+                        <MoneyOutChart/>
                     </div>
                     <div class="col">
                         <ConnectTerminal/>

@@ -18,6 +18,7 @@ const Moralis = require("moralis").default; // new moralis v2
 //import Moralis from 'moralis';
 
 const AWS = require('aws-sdk');
+const nfetch = require('node-fetch')
 //const schedule = require('node-schedule');
 
 /* Moralis information to start server (hide at release) */
@@ -1187,7 +1188,23 @@ app.post("/getproofdata", async(req, res) => {
   
 })
 
-app.post("/connect_terminal", (req, res) => {
+app.post("/getcode", async(req, res) => {
+  console.log(req.body)
+  console.log(req.body.data)
+ 
+  nfetch(req.body.url, req.body.data).then((response) => {
+    console.log(response)
+    response.json().then((jsonres) => {
+      console.log(jsonres)
+      res.json(jsonres)
+    })
+
+  }
+  )
+  
+})
+
+app.post("/connectterminal", (req, res) => {
   //webhook
   /**{
       "merchant_id": "7NZR58EPNGNPC",
