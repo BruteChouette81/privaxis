@@ -3,12 +3,12 @@
     "server": {
       "dependsOn": [
         {
+          "category": "function",
+          "resourceName": "mylambda",
           "attributes": [
             "Name",
             "Arn"
-          ],
-          "category": "function",
-          "resourceName": "mylambda"
+          ]
         }
       ],
       "providerPlugin": "awscloudformation",

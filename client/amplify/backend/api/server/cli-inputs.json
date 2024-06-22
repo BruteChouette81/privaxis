@@ -126,6 +126,13 @@
       "permissions": {
         "setting": "open"
       }
+    },
+    "/partnerConnection": {
+      "name": "/partnerConnection",
+      "lambdaFunction": "mylambda",
+      "permissions": {
+        "setting": "open"
+      }
     }
   }
 }

@@ -23,6 +23,8 @@ import { MemoryDatastore } from 'datastore-core'
 import { createHelia } from 'helia'
 import { createLibp2p } from 'libp2p'
 
+import ItemsAccount from './items_account';
+
 
 import './css/sellerprofile.css'
 
@@ -234,10 +236,10 @@ const data = {
   ],
 };
 
-const ItemChart = () => {
+const ItemChart = (props) => {
     return (
         <div class="itemsold">
-            <p>Total: <strong>7647</strong> orders</p>
+            <p>Total: <strong>7647</strong> <button type="button" class="btn btn-link" onClick={() => {props.setDisplay(true)}}>orders</button></p>
             <Line options={options} data={data} />
         </div>
     )
@@ -388,6 +390,7 @@ function SellerAccount() {
     const [ needPassword, setNeedPassword ] = useState(true)
     const [ profileLoading, setProfileLoading ] = useState(true)
     const [password, setPassword] = useState("")
+    let emailInp = ""
     let passwordInp = ""
 
 
@@ -420,6 +423,7 @@ function SellerAccount() {
     const [emailC, setEmailC] = useState(true)
 
     const [displayPayments, setDisplaypayments] = useState(false)
+    const [displayItems, setDisplayItems] = useState(false)
 
     const type = "spin"
     const color = "#0000FF"
@@ -461,12 +465,18 @@ function SellerAccount() {
         //setPassword(event.target.value)
         passwordInp = event.target.value;
     }
+    const changeEmail = (event) => {
+        //setPassword(event.target.value)
+        emailInp = event.target.value;
+    }
+
 
     const connectUsingPassword = async (e) => {
         e.preventDefault()
         
         console.log(passwordInp)
         setPassword(passwordInp)
+        setEmail(emailInp)
         const hasWallet = window.localStorage.getItem("hasWallet")
         //setAddress(window.localStorage.getItem("walletAddress"))
         await connection(hasWallet);
@@ -475,9 +485,16 @@ function SellerAccount() {
     function GetPassword() {
         return ( <div class="getPassword">
             <form onSubmit={connectUsingPassword}> 
-            {window.localStorage.getItem("hasWallet") ? (<h3>{window.localStorage.getItem("language") == "en" ? "Enter your password" :"Entrer votre Mot de Passe"}</h3>) : ( <div>{window.localStorage.getItem("language") == "en" ? "Enter a new password" :"Entrer un nouveau Mot de Passe"}<h3></h3>
+            {window.localStorage.getItem("hasWallet") ? (<h3>{window.localStorage.getItem("language") == "en" ? "Enter your partner informations" :"Entrez vos informations de partenaire"}</h3>) : ( <div>{window.localStorage.getItem("language") == "en" ? "Enter a new password" :"Entrer un nouveau Mot de Passe"}<h3></h3>
                 <p>{window.localStorage.getItem("language") == "en" ? "IMPORTANT: when you enter your password: you cannot change it without losing your account!" :"IMPORTANT: lorsque vous entrez votre mot de passe: vous ne pouvez pas le changer sans perdre votre compte !"}</p></div> )}
                 
+                <br />
+                <div class="mb-3 row">
+                    <label for="inputPassword" class="col-sm-2 col-form-label" >Email</label>
+                    <div class="col-sm-10">
+                        <input type="email" class="form-control" id="inputPassword" onChange={changeEmail}/>
+                    </div>
+                </div>
                 <br />
                 <div class="mb-3 row">
                     <label for="inputPassword" class="col-sm-2 col-form-label" >Password</label>
@@ -497,6 +514,7 @@ function SellerAccount() {
             alert("Error... deconnecter votre compte Metamask...")
         }
         else {
+            setFullname(fname + " " + lname)
             const NewWallet = ethers.Wallet.createRandom()
             const provider = new ethers.providers.InfuraProvider("sepolia")
             let newConnectedWallet = NewWallet.connect(provider)
@@ -504,7 +522,7 @@ function SellerAccount() {
             writePrivateKey(newConnectedWallet.address, newConnectedWallet.privateKey) //writting pk to did
             window.localStorage.setItem("hasWallet", true)
             window.localStorage.setItem("walletAddress", newConnectedWallet.address)
-            setFullname(fname + " " + lname)
+           
 
             //console.log(props.signer)
             const data = {
@@ -595,27 +613,19 @@ function SellerAccount() {
 
     const writePrivateKey = (account, privatekey) => { //function to write a privatekey to aws dynamo server
         //console.log(privatekey)
-        const did_data = {
-            address: account,
-            pk: privatekey.toString()
-        }
-
-        let stringdata = JSON.stringify(did_data)
-        var encrypted = AES.encrypt(stringdata, password)
-        window.localStorage.setItem("did", encrypted);
 
 
         var data = {
             body: {
                 address: account.toLowerCase(),
-                privatekey: "", //set did to "" for new accounts
-                email_c: emailC,
-                email: email
+                email: email,
+                password:password,
+                name: fullname
             }
         }
         setPrivatekey(privatekey)
 
-        var url = "/connection"
+        var url = "/partnerConnection"
         const provider = new ethers.providers.InfuraProvider("sepolia")
 
         API.post('server', url, data).then(async (response) => {
@@ -624,12 +634,6 @@ function SellerAccount() {
             setImg(response.img);
             setCustimg(response.cust_img);
             setName(response.name)
-            setRequest(response.request)
-            setFriendList(response.friend)
-            setDescription(response.description)
-            setPay(response.pay)
-            setRealPurchase(response.realPurchase)
-            setLevel(response.level)
     
             //change user privatekey to the json
             let userwallet = new ethers.Wallet(privatekey, provider) //response.privatekey
@@ -656,29 +660,25 @@ function SellerAccount() {
         })
     }
 
-    const getPrivateKey = async(account, privatekey) => { //function to get privatekey from aws dynamo server
+    const getPrivateKey = async(email, privatekey) => { //function to get privatekey from aws dynamo server
         var data = {
             body: {
-                address: account?.toLowerCase()
+                email: email,
+                password: passwordInp
             }
         }
 
-        var url = "/connection"
+        var url = "/partnerConnection"
 
         const provider = new ethers.providers.InfuraProvider("sepolia")
         //const binanceProvider = new ethers.providers.JsonRpcProvider("https://bsc-dataseed.binance.org/")
 
         API.post('server', url, data).then(async (response) => {
+            console.log(response)
             setBack(response.bg);
             setImg(response.img);
             setCustimg(response.cust_img);
             setName(response.name)
-            setRequest(response.request)
-            setFriendList(response.friend)
-            setDescription(response.description)
-            setPay(response.pay)
-            setRealPurchase(response.realPurchase)
-            setLevel(response.level)
     
             //change user privatekey to the json
             let userwallet = new ethers.Wallet(privatekey, provider) //response.privatekey
@@ -754,7 +754,7 @@ function SellerAccount() {
                         window.location.reload()
                     }
                     window.sessionStorage.setItem("password", passwordInp)
-                    getPrivateKey(window.localStorage.getItem("walletAddress"), res.pk)
+                    getPrivateKey(res.email, res.pk)
                     if (res.email) {
                         setEmail(res.email)
                         setFullname(res.first_name + " " + res.last_name)
@@ -801,7 +801,7 @@ function SellerAccount() {
         
     }, [])
         return(
-            displayPayments ? <PaymentsAccount setDisplay={setDisplaypayments}/> : needPassword ? <GetPassword /> : firstConnect ? ( <div class="DidBuilding">
+            displayPayments ? <PaymentsAccount setDisplay={setDisplaypayments}/> : displayItems ? <ItemsAccount/> : needPassword ? <GetPassword /> : firstConnect ? ( <div class="DidBuilding">
             <p>You can always delete any DiD ( <a href=""> see our security policy</a>) </p>
                                 <form onSubmit={saveId}>
                                 <input type="text" id="fname" name="fname" class="form-control" placeholder="First Name : Thomas" onChange={onFnameChanged}/>
@@ -848,7 +848,7 @@ function SellerAccount() {
                         <CPLWallet/>
                         </div>
                         <div class="col-6">
-                        <ItemChart/>
+                        <ItemChart setDisplay={setDisplayItems}/>
                         </div>
                         <div class="col">
                         <UpgradePopup/>

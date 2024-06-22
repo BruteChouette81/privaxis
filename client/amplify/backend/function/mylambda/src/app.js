@@ -401,6 +401,66 @@ app.post('/connection', (req, res) => {
     
 });
 
+app.post("/partnerConnection", (req, res) => {
+  const data = req.body;
+  //var exist = 0;
+  console.log(data.email)
+
+  
+  let params = {
+      TableName: "partnerlogin",
+      Key: {
+        email: data.email
+      }
+    }
+    dynamodb.get(params, (error, result) => {
+      if (error) {
+        console.log(error)
+        //res.json({ statusCode: 500, error: error.message })
+      } else {
+        if(result.Item) {
+          if(result.Item.password==data.password) {
+            res.json({ bg: result.Item.bg, img: result.Item.img, cust_img: result.Item.cust_img, name: result.Item.name, address: result.Item.address})
+          } else {
+            res.send("error, bad password")
+          }
+          
+        }
+        else {
+          console.log("[DEBUG -connection] new user added: " + data.email)
+          var newbg = possible_bg[Math.floor(Math.random() * possible_bg.length)]
+          var newimg =  possible_img[Math.floor(Math.random() * possible_img.length)]
+
+          let create_params = {
+            TableName: "partnerlogin",
+            Item: {
+              email: data.email, //if metamask profile, set as "" else set as real PK
+              password: data.password,
+              name: data.name,
+              address: data.address, //default username store is the address
+              bg: newbg,
+              img: newimg,
+              cust_img: false
+            }
+          }
+          console.log(create_params)
+
+          dynamodb.put(create_params, (error, result) => {
+            if (error) {
+              res.json({error: error.message});
+            } else {
+              console.log(result)
+              res.json({bg: newbg, img: newimg, cust_img: false, name: data.name});
+          }})
+        }
+
+        
+        
+
+      }
+    })
+})
+
 
 app.put("/uploadFile", (req, res) => {
   
