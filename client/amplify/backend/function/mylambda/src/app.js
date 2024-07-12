@@ -420,7 +420,7 @@ app.post("/partnerConnection", (req, res) => {
       } else {
         if(result.Item) {
           if(result.Item.password==data.password) {
-            res.json({ bg: result.Item.bg, img: result.Item.img, cust_img: result.Item.cust_img, name: result.Item.name, address: result.Item.address})
+            res.json({ bg: result.Item.bg, img: result.Item.img, cust_img: result.Item.cust_img, name: result.Item.name, address: result.Item.address, website: result.Item.website, dds: result.Item.dds})
           } else {
             res.send("error, bad password")
           }
@@ -440,7 +440,7 @@ app.post("/partnerConnection", (req, res) => {
               address: data.address, //default username store is the address
               bg: newbg,
               img: newimg,
-              cust_img: false
+              cust_img: false,
             }
           }
           console.log(create_params)

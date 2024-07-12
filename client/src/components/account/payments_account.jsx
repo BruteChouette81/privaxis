@@ -31,8 +31,26 @@ ChartJS.register(
   );
   
 const AllPayments = () => {
+    const [paypalEmail, setPaypalEmail] = useState("")
+
+    const onPaypalEmailChange = (event) => {
+        setPaypalEmail(event.target.value)
+    }
+
+    const handleNewPaypalEmail = (e) => {
+        e.preventDefault()
+        window.localStorage.setItem("moneyAddress", paypalEmail)
+        alert("Succefully updated your Paypal Address!")
+    }
     return (<div className="payChart">
                 <h2>Total: <strong>115.3k</strong></h2>
+                <h4>Get paid using <img src="https://www.pngall.com/wp-content/uploads/2016/03/Paypal-Logo-PNG.png" alt="" style={{"height":"50px", "width":"auto"}} /></h4>
+                <p>Enter a valid paypal-connected email and get payed using paypal.</p>
+                <form onSubmit={handleNewPaypalEmail}>
+                    {window.localStorage.getItem("moneyAddress") ? <input type="email" id="email" name="email" class="form-control" placeholder={window.localStorage.getItem("moneyAddress")} onChange={onPaypalEmailChange}/>   : <input type="email" id="email" name="email" class="form-control" placeholder="paypal@test.com" onChange={onPaypalEmailChange}/>  }  
+                    <br />
+                    <input type="submit" class="btn btn-primary" value="Update email" />
+                </form>
             </div>)
 }
 

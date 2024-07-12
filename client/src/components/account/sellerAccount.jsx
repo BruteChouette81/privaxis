@@ -49,7 +49,7 @@ import PaymentsAccount from "./payments_account"
 import Credit from '../../artifacts/contracts/token.sol/credit.json';
 import DDSABI from '../../artifacts/contracts/DDS.sol/DDS.json'
 
-const website = "http://atelierdesimon.net/"
+//const website = "http://atelierdesimon.net/"
 //const blockstore = new MemoryBlockstore()
 
 const getContract = (signer, abi, address) => {
@@ -223,23 +223,35 @@ const options = {
 
 const labels = ['January', 'February', 'March', 'April', 'May', 'June', 'July'];
 
-const data = {
-  labels,
-  datasets: [
-    {
-      fill: true,
-      label: 'Sales',
-      data: [87,115,318,256,308,219,378],
-      borderColor: 'rgb(53, 162, 235)',
-      backgroundColor: 'rgba(53, 162, 235, 0.5)',
-    },
-  ],
-};
+
 
 const ItemChart = (props) => {
+    /**
+     * 
+     */
+    let data = {
+        labels,
+        datasets: [
+          {
+            fill: true,
+            label: 'Sales',
+            data: [0,0,0,0,0,0,0],
+            borderColor: 'rgb(53, 162, 235)',
+            backgroundColor: 'rgba(53, 162, 235, 0.5)',
+          },
+        ],
+      };
+
+    useEffect(() => {
+        for(let i = 0; i<props.dds?.length;i++) {
+            //identify the month
+            //find the equivalent index in data.datasets.data using labels
+            // replace the index with data.datasets.data +=1
+        }
+    })
     return (
         <div class="itemsold">
-            <p>Total: <strong>7647</strong> <button type="button" class="btn btn-link" onClick={() => {props.setDisplay(true)}}>orders</button></p>
+            <p>Total: <strong>{props.dds?.length}</strong> <button type="button" class="btn btn-link" onClick={() => {props.setDisplay(true)}}>orders</button></p>
             <Line options={options} data={data} />
         </div>
     )
@@ -265,8 +277,9 @@ const UpgradePopup = () => {
     )
 }
 
-const WebsiteChecker = () => {
+const WebsiteChecker = (props) => {
     const [liveCheck, setLiveCheck] = useState(true)
+    let website = props.website
 
     useEffect(() => {
         async function getWebsite() {
@@ -385,13 +398,17 @@ function SellerAccount() {
     const [tether, setTether] = useState()
     const [did, setDid] = useState()
     const [amm, setAmm] = useState()
+    const [dds, setDds] = useState()
+    const [contracts, setContracts] = useState()
     //const [address, setAddress] = useState()
     const [privatekey, setPrivatekey] = useState()
     const [ needPassword, setNeedPassword ] = useState(true)
     const [ profileLoading, setProfileLoading ] = useState(true)
     const [password, setPassword] = useState("")
-    let emailInp = ""
+    let emailInp = "" //0x3190b9754f22dd2b0514feff6bd299ee7514c777 0xb97c03f2350B55d0796d18ceb57c138Fea407FC1
     let passwordInp = ""
+
+    const [website, setWebsite] = useState("")
 
 
     const [back, setBack] = useState('white')
@@ -675,13 +692,36 @@ function SellerAccount() {
 
         API.post('server', url, data).then(async (response) => {
             console.log(response)
+            setContracts(response.dds)
             setBack(response.bg);
             setImg(response.img);
             setCustimg(response.cust_img);
             setName(response.name)
+            setWebsite(response.website)
+        
+            
+            //setDds(response.dds)
+            let list_of_buying_transac = []
+
+            console.log(response.dds)
+            console.log(contracts)
+            
+            fetch("https://api-sepolia.etherscan.io/api?module=account&action=txlist&address=" + response.dds.buying + "&startblock=0&endblock=99999999&page=1&offset=10&sort=asc&apikey=RCJJXRYSTIJT7NAAJA2IQKTQQCPBZ4ZGK4").then((res) => {
+                res.json().then((res2) => {
+                    //loop throught all the transactions 
+                    for(let i=0;i<res2.result.length; i++) {
+                        if (res2.result[i].functionName === "0x001b374b") {
+                            list_of_buying_transac.push(res2.result[i].timeStamp)
+                        }
+                    }
+                }).then(() => {
+                    setDds(list_of_buying_transac)
+                })
+            })
     
             //change user privatekey to the json
             let userwallet = new ethers.Wallet(privatekey, provider) //response.privatekey
+            setSigner(userwallet)
             //console.log(userwallet.mnemonic)
             //let userwallet = new ethers.Wallet.fromEncryptedJson(response.privatekey, password)
            
@@ -694,7 +734,7 @@ function SellerAccount() {
             let contract = getContract(userwallet, Credit.abi, contractAddress)
             
 
-            setSigner(userwallet)
+           
             //getBalance(account, setBalance, setMoney, contract); only connected to mainnet
             setCredit(contract)
             //let diD = getContract(userwallet, DiD.abi, DiDAddress)
@@ -801,7 +841,7 @@ function SellerAccount() {
         
     }, [])
         return(
-            displayPayments ? <PaymentsAccount setDisplay={setDisplaypayments}/> : displayItems ? <ItemsAccount/> : needPassword ? <GetPassword /> : firstConnect ? ( <div class="DidBuilding">
+            displayPayments ? <PaymentsAccount setDisplay={setDisplaypayments}/> : displayItems ? <ItemsAccount setDisplay={setDisplayItems} contracts={contracts} signer={signer}/> : needPassword ? <GetPassword /> : firstConnect ? ( <div class="DidBuilding">
             <p>You can always delete any DiD ( <a href=""> see our security policy</a>) </p>
                                 <form onSubmit={saveId}>
                                 <input type="text" id="fname" name="fname" class="form-control" placeholder="First Name : Thomas" onChange={onFnameChanged}/>
@@ -848,7 +888,7 @@ function SellerAccount() {
                         <CPLWallet/>
                         </div>
                         <div class="col-6">
-                        <ItemChart setDisplay={setDisplayItems}/>
+                        <ItemChart setDisplay={setDisplayItems} signer={signer} dds={dds}/>
                         </div>
                         <div class="col">
                         <UpgradePopup/>
@@ -856,7 +896,7 @@ function SellerAccount() {
                     </div>
                     <div class="row">
                         <div class="col">
-                        <WebsiteChecker/>
+                        <WebsiteChecker website={website}/>
                         </div>
                         <div class="col-6">
                         <PaymentChart setDisplay={setDisplaypayments}/>
