@@ -24,6 +24,10 @@ import { createHelia } from 'helia'
 import { createLibp2p } from 'libp2p'
 
 import ItemsAccount from './items_account';
+import {Buffer} from 'buffer';
+
+
+import { CLIENT_ID, APP_SECRET } from '../../apikeyStorer';
 
 
 import './css/sellerprofile.css'
@@ -48,6 +52,8 @@ import PaymentsAccount from "./payments_account"
 
 import Credit from '../../artifacts/contracts/token.sol/credit.json';
 import DDSABI from '../../artifacts/contracts/DDS.sol/DDS.json'
+
+import { square_secret } from '../../apikeyStorer';
 
 //const website = "http://atelierdesimon.net/"
 //const blockstore = new MemoryBlockstore()
@@ -221,38 +227,22 @@ const options = {
   },
 };
 
-const labels = ['January', 'February', 'March', 'April', 'May', 'June', 'July'];
-
+let labels = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'Septembre', 'November', 'December'];
+const labels_index = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'Septembre', 'November', 'December'];
 
 
 const ItemChart = (props) => {
+    const [finishUpload, setFinishUpload] = useState(false)
     /**
      * 
      */
-    let data = {
-        labels,
-        datasets: [
-          {
-            fill: true,
-            label: 'Sales',
-            data: [0,0,0,0,0,0,0],
-            borderColor: 'rgb(53, 162, 235)',
-            backgroundColor: 'rgba(53, 162, 235, 0.5)',
-          },
-        ],
-      };
+    
 
-    useEffect(() => {
-        for(let i = 0; i<props.dds?.length;i++) {
-            //identify the month
-            //find the equivalent index in data.datasets.data using labels
-            // replace the index with data.datasets.data +=1
-        }
-    })
+    
     return (
         <div class="itemsold">
-            <p>Total: <strong>{props.dds?.length}</strong> <button type="button" class="btn btn-link" onClick={() => {props.setDisplay(true)}}>orders</button></p>
-            <Line options={options} data={data} />
+            <p>{window.localStorage.getItem("language") == "fr" ? "Nombre total de commande:" : "Total orders:"} <strong>{props.numOrders}</strong> <button type="button" class="btn btn-link" onClick={() => {props.setDisplay(true)}}>{window.localStorage.getItem("language") == "fr" ? "commandes" : "orders"}</button></p>
+            {props.dds ? <Line options={options} data={props.dds} /> : ""}
         </div>
     )
 }
@@ -267,12 +257,13 @@ const SingleUpgrade = (props) => {
 }
 
 const UpgradePopup = () => {
+    /*<SingleUpgrade color="red" upgrade="Web Designer" link="/" />
+            <SingleUpgrade color="blue" upgrade="SEO" link="/" />
+            <SingleUpgrade color="green" upgrade="Marketing Specialist" link="/" />*/
     return (
         <div class="upgradepopup">
-            <p>Upgrades</p>
-            <SingleUpgrade color="red" upgrade="Web Designer" link="/" />
-            <SingleUpgrade color="blue" upgrade="SEO" link="/" />
-            <SingleUpgrade color="green" upgrade="Marketing Specialist" link="/" />
+            <h4>Services</h4>
+            <p style={{"color":"red"}}>{window.localStorage.getItem("language") == "fr" ? "Aucun service n'est actuellement disponible pour votre entreprise." : "No services are currently available for your business."}</p>
         </div>
     )
 }
@@ -283,8 +274,8 @@ const WebsiteChecker = (props) => {
 
     useEffect(() => {
         async function getWebsite() {
-            try {
-                const response = await fetch(website, {
+            try { //
+                const response = await fetch(`https://${website}`, {
                     method: "GET", // *GET, POST, PUT, DELETE, etc.
                     mode: "no-cors", // no-cors, *cors, same-origin
                     headers: {
@@ -305,22 +296,33 @@ const WebsiteChecker = (props) => {
         
        
     }, [setLiveCheck])
+    /**
+     *  <form onSubmit={connectWIPFS}>
+                <input type="file" name="webtester" id="" />
+                
+            </form>
+
+
+        plan: 
+        - get the pages we can modify (push/retrieve system) ==>  <button  class="btn btn-primary">Add a page</button>
+        - get a readble version of the react page ==> {bundle.js and html}
+        - options to customize using css only + adding simple things such as text
+        - push methot to update amplify once the bundle is updated
+
+         <br />
+            <a href="/websitebuilderbypage/market">{`https://${website}`}/market</a>
+     */
     return (
         <div class="webChecker">
-            {liveCheck ?<p style={{"color":"green"}}>Your website is live</p> : <p style={{"color":"red"}}>Your website is down</p> }
-            <a href={website}>{website}</a> {liveCheck ? <img src="http://clipart-library.com/images_k/green-check-mark-icon-transparent-background/green-check-mark-icon-transparent-background-10.png" alt="" style={{"float":"right", "height":"20px", "width":"auto"}}/>: <img src="https://cdn.picpng.com/exit/x-exit-button-icon-symbol-66209.png" alt="" style={{"float":"right", "height":"20px", "width":"auto"}} />}
+            {liveCheck ?<p style={{"color":"green"}}>{window.localStorage.getItem("language") == "fr" ? "Votre site web est en ligne" : "Your website is live"}</p> : <p style={{"color":"red"}}>{window.localStorage.getItem("language") == "fr" ? "Votre site web n'est pas en ligne" : "Your website is down"}</p> }
+            <a href={`https://${website}`}>{website}</a> {liveCheck ? <img src="http://clipart-library.com/images_k/green-check-mark-icon-transparent-background/green-check-mark-icon-transparent-background-10.png" alt="" style={{"float":"right", "height":"20px", "width":"auto"}}/>: <img src="https://cdn.picpng.com/exit/x-exit-button-icon-symbol-66209.png" alt="" style={{"float":"right", "height":"20px", "width":"auto"}} />}
             <br />
-            <p> <strong> Explore and modify your pages</strong></p>
-            <a href="">www.store.com/home </a>
-            <br />
-            <a href="">www.store.com/about</a>
-            <br />
-            <a href="">www.store.com/store</a>
+            <p> <strong> {window.localStorage.getItem("language") == "fr" ? "Explorer et modifier les pages de votre site" : "Explore and modify your pages"}</strong></p>
+            <a href="/websitebuilderbypage/home">{`https://${website}`}/home </a>
+           
+           
 
-            <form onSubmit={connectWIPFS}>
-                <input type="file" name="webtester" id="" />
-                <button type='submit' class="btn btn-primary">Connect to IPFS</button>
-            </form>
+           
         </div>
     )
 }
@@ -338,39 +340,27 @@ const options2 = {
     },
   };
   
-  
-const data2 = {
-    labels,
-    datasets: [
-      {
-        label: 'Payments',
-        data: [87,115,318,256,308,219,378],
-        backgroundColor: 'rgba(255, 99, 132, 0.5)',
-      },
-    ],
-  };
-  
 
 const PaymentChart = (props) => {
     return (
         <div class="payChart">
-            <p><button type="button" class="btn btn-link" onClick={() => {props.setDisplay(true)}}>Money</button>received: <strong>108.1k</strong> $</p>
-            <p>Fee paid: 5.8k $</p>
-            <Bar options={options2} data={data2} />
+            {window.localStorage.getItem("language") == "fr" ? (<p><button type="button" class="btn btn-link" onClick={() => {props.setDisplay(true)}}>Fonds</button>reçu: <strong>{props.total}</strong> $</p>) : (<p><button type="button" class="btn btn-link" onClick={() => {props.setDisplay(true)}}>Money</button>received: <strong>{props.total}</strong>  $</p>)}
+            {window.localStorage.getItem("language") == "fr" ? <p>Frais payés: {props.total *0.027} $</p> : <p>Fee paid: {props.total *0.027} $</p> }
+            {props.data ? <Bar options={options2} data={props.data} /> : ""}
         </div>
     )
 }
 
-const Bills = () => {
+const Bills = (props) => {
+    // <button class="btn btn-primary">Change Billing Infos</button>
     return (
         <div class="bills">
-            <p>list of your bills</p>
+            {window.localStorage.getItem("language") == "fr" ? <h4>Liste de vos factures</h4>: <h4>list of your bills</h4> }
             <p>Hosting:             0$</p>
-            <p>A*2200 - Service:    1,300$</p>
-            <p>A*2200 - Service:    900$</p>
-            <p>CPL fees:            8,900$</p>
-            <p> <strong>Total: 11,100$</strong></p>
-            <button class="btn btn-primary">Change Billing Infos</button>
+            <p>Services:            0$</p>
+            <p>CPL fees:            {props.total*0.027}$</p>
+            <p> <strong>Total: {props.total*0.027}$</strong></p>
+           
         </div>
     )
 }
@@ -378,9 +368,9 @@ const Bills = () => {
 const CPLWallet = () => {
     return (
         <div class="wallet">
-            <h6>Your wallet:</h6>
-            <p>Total: <strong>223.2k $</strong> <p style={{"color":"green", "float":"right"}}>+8.9%</p></p>
-            <p>Average fee paid: <strong style={{"color":"red"}}>1.8%</strong></p>
+            <h6>{window.localStorage.getItem("language") == "fr" ? "Votre Portefeuille:" : "Your wallet:"}</h6>
+            <p>Total: <strong>0 $</strong> <p style={{"color":"green", "float":"right"}}></p></p>
+            <p>{window.localStorage.getItem("language") == "fr" ? "Frais de transaction moyen:" : "Average fee paid:"} <strong style={{"color":"red"}}>2.7%</strong></p>
         </div>
     )
 }
@@ -399,6 +389,9 @@ function SellerAccount() {
     const [did, setDid] = useState()
     const [amm, setAmm] = useState()
     const [dds, setDds] = useState()
+    const [paymentData, setPaymentData] = useState()
+    const [totalMoneyReceived, setTotalMoneyeceived] = useState()
+    const [numOrders, setNumOrders] = useState()
     const [contracts, setContracts] = useState()
     //const [address, setAddress] = useState()
     const [privatekey, setPrivatekey] = useState()
@@ -425,6 +418,7 @@ function SellerAccount() {
     const [realPurchase, setRealPurchase] = useState()
     const [level, setLevel] = useState(0)
     const [signer, setSigner] = useState()
+    const [device_id, setDevice_id] = useState()
 
     const [firstConnect, setFirstConnect] = useState(false)
     const [fullname, setFullname] = useState("")
@@ -533,7 +527,7 @@ function SellerAccount() {
         else {
             setFullname(fname + " " + lname)
             const NewWallet = ethers.Wallet.createRandom()
-            const provider = new ethers.providers.InfuraProvider("sepolia")
+            const provider = new ethers.providers.InfuraProvider("sepolia", "1595c0d504a04055a0c61fb5b2cf4eb6")
             let newConnectedWallet = NewWallet.connect(provider)
             console.log(newConnectedWallet.privateKey)
             writePrivateKey(newConnectedWallet.address, newConnectedWallet.privateKey) //writting pk to did
@@ -643,7 +637,7 @@ function SellerAccount() {
         setPrivatekey(privatekey)
 
         var url = "/partnerConnection"
-        const provider = new ethers.providers.InfuraProvider("sepolia")
+        const provider = new ethers.providers.InfuraProvider("sepolia", "1595c0d504a04055a0c61fb5b2cf4eb6")
 
         API.post('server', url, data).then(async (response) => {
             console.log(response)
@@ -676,6 +670,18 @@ function SellerAccount() {
 
         })
     }
+    const generateAccessToken = async () => {
+        const auth = Buffer.from(CLIENT_ID + ":" + APP_SECRET).toString("base64")
+        const response = await fetch(`https://api-m.paypal.com/v1/oauth2/token`, {
+            method: "POST",
+            body: "grant_type=client_credentials",
+            headers: {
+            Authorization: `Basic ${auth}`,
+            },
+        });
+        const data = await response.json();
+        return data.access_token;
+      };
 
     const getPrivateKey = async(email, privatekey) => { //function to get privatekey from aws dynamo server
         var data = {
@@ -687,7 +693,7 @@ function SellerAccount() {
 
         var url = "/partnerConnection"
 
-        const provider = new ethers.providers.InfuraProvider("sepolia")
+        const provider = new ethers.providers.InfuraProvider("sepolia", "1595c0d504a04055a0c61fb5b2cf4eb6")
         //const binanceProvider = new ethers.providers.JsonRpcProvider("https://bsc-dataseed.binance.org/")
 
         API.post('server', url, data).then(async (response) => {
@@ -698,26 +704,198 @@ function SellerAccount() {
             setCustimg(response.cust_img);
             setName(response.name)
             setWebsite(response.website)
+            setDevice_id(response.device_id)
         
             
             //setDds(response.dds)
+            let square_data = new Array(12).fill(0)
+            let last_month_square_data = 6 //august
             let list_of_buying_transac = []
+            let list_of_buying_ip_transac = []
+            let list_of_buying_transac_value = []
+            let list_of_buying_ip_transac_value = []
+            let liveDate = new Date()
+            labels = labels.slice(liveDate.getMonth()+1, 12).concat(labels.slice(0, liveDate.getMonth()+1))
+            square_data = square_data.slice(liveDate.getMonth()+1, 12).concat(square_data.slice(0, liveDate.getMonth()+1)) //right order based on the month
+            square_data = square_data.slice(((liveDate.getMonth()+1) -last_month_square_data), 12)
+            square_data = square_data.concat(Array(12-square_data.length).fill(0))
+            //console.log(square_data)
+            let data = {
+                labels,
+                datasets: [
+                  {
+                    fill: true,
+                    label: ' Online sales',
+                    data: [0,0,0,0,0,0,0, 0, 0, 0, 0, 0],
+                    borderColor: 'rgb(53, 162, 235)',
+                    backgroundColor: 'rgba(53, 162, 235, 0.5)',
+                  },
+                  {
+                    fill: false,
+                    label: ' In-person sales',
+                    data: [0,0,0,0,0,0,0, 0, 0, 0, 0, 0],
+                    borderColor: 'red',
+                    backgroundColor: 'red',
+                  },
+                ],
+              };
+              const data2 = {
+                labels,
+                datasets: [
+                  {
+                    label: 'Payments',
+                    data: square_data,
+                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                  },
+                ],
+              };
+
+            
+              
 
             console.log(response.dds)
             console.log(contracts)
+            //get the device code from either decentralized profile or server
             
-            fetch("https://api-sepolia.etherscan.io/api?module=account&action=txlist&address=" + response.dds.buying + "&startblock=0&endblock=99999999&page=1&offset=10&sort=asc&apikey=RCJJXRYSTIJT7NAAJA2IQKTQQCPBZ4ZGK4").then((res) => {
+            var params = {
+                    body: {
+                        url: "https://connect.squareup.com/v2/payments",
+                        data: {
+                            method:"get",
+                            headers: {
+                               
+                                'Authorization': `Bearer ${square_secret}`,
+                                'Content-Type': 'application/json',
+                                'Square-Version': '2024-06-04',
+                                
+                                }
+                    }
+                }
+            }
+            let start_date = ""
+            let end_date = ""
+            const paypalBearer = await generateAccessToken()
+           
+
+           
+            
+            API.post('server',"/getcode", params).then((res) => {
+                console.log(res)
+                for (let i=0; i<res?.payments?.length; i++) { //if (location_id == "") {}
+                    list_of_buying_ip_transac.push(res?.payments[i]?.updated_at)
+                    list_of_buying_ip_transac_value.push(res?.payments[i]?.amount_money.money)
+                }
+                //https://developer.squareup.com/reference/square/payments-api/list-payments
+                
+            }).then(()=> {
+                for(let i = 0; i<list_of_buying_ip_transac.length;i++) {
+
+                       
+                    var date = new Date(Date.parse(list_of_buying_ip_transac[i]));
+                    let month = date.getMonth()
+                    let index = labels_index[month-1]
+                    let position = labels.indexOf(index)
+                    data.datasets[1].data[position] +=1
+                    data2.datasets[0].data[position] += list_of_buying_ip_transac_value[i] //push payment value into the payment data
+                    if ((i+1)==list_of_buying_ip_transac.length) {
+                        console.log(data)
+                        //setDds(data)
+        
+                    }
+        
+        
+                    //identify the month
+                    //find the equivalent index in data.datasets.data using labels
+                    // replace the index with data.datasets.data +=1
+                }}).then(() => {
+            
+            fetch("https://api-sepolia.etherscan.io/api?module=account&action=txlist&address=" + response.dds.buying + "&startblock=0&endblock=99999999&page=1&offset=1000&sort=asc&apikey=RCJJXRYSTIJT7NAAJA2IQKTQQCPBZ4ZGK4").then((res) => {
                 res.json().then((res2) => {
+                    console.log(res2)
+                   
+                   
                     //loop throught all the transactions 
                     for(let i=0;i<res2.result.length; i++) {
-                        if (res2.result[i].functionName === "0x001b374b") {
+                        if (res2.result[i].methodId === "0x001b374b") {
                             list_of_buying_transac.push(res2.result[i].timeStamp)
                         }
                     }
-                }).then(() => {
-                    setDds(list_of_buying_transac)
+                }).then(() => {  
+
+                    setNumOrders(list_of_buying_transac.length + list_of_buying_ip_transac.length)
+                    for(let i = 0; i<list_of_buying_transac.length;i++) {
+
+                       
+                        var date = new Date(list_of_buying_transac[i] * 1000);
+                        let month = date.getMonth()
+                        //console.log(date.toDateString())
+                        let index = labels_index[month-1]
+                        let position = labels.indexOf(index)
+                        data.datasets[0].data[position+1] +=1
+                        if ((i+1)==list_of_buying_transac.length) {
+                            console.log(data)
+                            setDds(data)
+                            for (let i=0; i<data.datasets[0].data.length; i++) {
+                                if(data.datasets[0].data[i] !== 0) {//if their was a transaction in that month, load the month from paypal
+                                
+                                    let starting_month = labels_index.indexOf(labels[i])
+                                    //let newdate = new Date(2024, starting_month, 1)
+                                    if (starting_month.toString().length > 1) {
+                                        start_date = `2024-${starting_month+1}-01T00:00:00-0700`
+                                        end_date =  `2024-${starting_month+2}-01T00:00:00-0700`
+                                    } else {
+                                        start_date = `2024-0${starting_month+1}-01T00:00:00-0700`
+                                        end_date =  `2024-0${starting_month+2}-01T00:00:00-0700`
+                                    }
+                                    
+                                    var params2 = {
+                                        body: {
+                                            url: "https://api-m.paypal.com/v1/reporting/transactions?start_date=" + start_date +"&end_date=" + end_date,
+                                            data: {
+                                                method:"get",
+                                                headers: {
+                                                   
+                                                    'Authorization': `Bearer ${paypalBearer}`,
+                                                    'Content-Type': 'application/json',
+                                                    
+                                                    }
+                                        }
+                                    }
+                                    }
+                                    console.log(params2)
+                                    
+                                    API.post('server',"/getcode", params2).then((res) => {
+                                        console.log(res)
+                                        for (let j=0; j<res.transaction_details.length; j++) {
+                                            data2.datasets[0].data[i] += parseInt(res.transaction_details[j].transaction_info.transaction_amount.value)
+                                            
+                                            
+                                            
+                                        }
+                                      
+                                    })
+
+                                }
+                                if ((i+1)==data.datasets[0].data.length) {
+                                    console.log(data2)
+                                    let total = 0;
+                                    data2.datasets[0].data.forEach((number) => (total += number));
+                                    setTotalMoneyeceived(total)
+                                    
+                                    setPaymentData(data2)
+                                }
+                            }
+            
+                        }
+            
+            
+                        //identify the month
+                        //find the equivalent index in data.datasets.data using labels
+                        // replace the index with data.datasets.data +=1
+                    }
+                   
                 })
-            })
+            })})
     
             //change user privatekey to the json
             let userwallet = new ethers.Wallet(privatekey, provider) //response.privatekey
@@ -841,7 +1019,7 @@ function SellerAccount() {
         
     }, [])
         return(
-            displayPayments ? <PaymentsAccount setDisplay={setDisplaypayments}/> : displayItems ? <ItemsAccount setDisplay={setDisplayItems} contracts={contracts} signer={signer}/> : needPassword ? <GetPassword /> : firstConnect ? ( <div class="DidBuilding">
+            displayPayments ? <PaymentsAccount setDisplay={setDisplaypayments} data={paymentData} total={totalMoneyReceived} device_id={device_id}/> : displayItems ? <ItemsAccount setDisplay={setDisplayItems} device_id={device_id} contracts={contracts} signer={signer}/> : needPassword ? <GetPassword /> : firstConnect ? ( <div class="DidBuilding">
             <p>You can always delete any DiD ( <a href=""> see our security policy</a>) </p>
                                 <form onSubmit={saveId}>
                                 <input type="text" id="fname" name="fname" class="form-control" placeholder="First Name : Thomas" onChange={onFnameChanged}/>
@@ -879,16 +1057,16 @@ function SellerAccount() {
                             <img alt="" src={default_profile} id="profile_img" style={{backgroundColor: img}} />
                         </div>
                         <div class="profile-info">
-                        <h4 id="profile-info-tag">Information du compte:</h4>
+                        <h4 id="profile-info-tag">{window.localStorage.getItem("language") == "fr" ? "Information du compte:" : "Account Info:"}</h4>
                         <p>Id: {id}</p>
-                        <p>Welcome: {fullname}</p>
+                        <p>{window.localStorage.getItem("language") == "fr" ? `Bienvenue: ${fullname}`:  `Welcome: ${fullname}`}</p>
                     
                     
                         </div>
                         <CPLWallet/>
                         </div>
                         <div class="col-6">
-                        <ItemChart setDisplay={setDisplayItems} signer={signer} dds={dds}/>
+                        <ItemChart setDisplay={setDisplayItems} signer={signer} numOrders={numOrders} dds={dds}/>
                         </div>
                         <div class="col">
                         <UpgradePopup/>
@@ -899,10 +1077,10 @@ function SellerAccount() {
                         <WebsiteChecker website={website}/>
                         </div>
                         <div class="col-6">
-                        <PaymentChart setDisplay={setDisplaypayments}/>
+                        <PaymentChart setDisplay={setDisplaypayments} data={paymentData} total={totalMoneyReceived}/>
                         </div>
                         <div class="col">
-                        <Bills/>
+                        <Bills total={totalMoneyReceived}/>
                         </div>
                     
                

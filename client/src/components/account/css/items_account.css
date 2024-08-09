@@ -10,18 +10,6 @@
     box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
 }
 
-
-.receipt {
-    margin: 20px;
-    padding: 10px;
-    height: 650px;
-    width: 500px;
-    float: left;
-    background-image: linear-gradient(rgba(0, 0, 0, 0.573), rgba(45, 45, 51, 0.573));
-    border-style: solid;
-    color: white;
-    border-radius: 15px;
-}
 #itemimg {
     width: auto;
     height: 350px;

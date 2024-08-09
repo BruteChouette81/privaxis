@@ -18,6 +18,7 @@ const useExporter = () => {
     const rootID = (
         collected.node.id
     );
+    console.log(collected)
     const rootHTML = (
         collected.meta.html
     );

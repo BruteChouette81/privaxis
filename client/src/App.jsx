@@ -19,6 +19,7 @@ import Community from './components/community';
 import Whitepaper from './components/whitepaper';
 import Products from './components/products';
 import WebsiteBuilder from './components/websitebuilder';
+import WebsiteBuilderByPage from './components/websiteBuilderByPage';
 
 import Market from './components/market/market'
 import Seller from './components/friend/seller';
@@ -73,7 +74,7 @@ function App() {
     return(
       <div>
         <Web3ReactProvider getLibrary={getLibrary}>
-          <Router>
+          
             <NewNavBar />
             <Routes>
               <Route path="/" element={<Home />}/>
@@ -83,12 +84,13 @@ function App() {
               <Route path="/whitepaper" element={<Whitepaper/>}/>
               <Route path="/products" element={<Products/>}/>
               <Route path="/websitebuilder" element={<WebsiteBuilder/>}/>
+              <Route path="/websitebuilderbypage/:page" element={<WebsiteBuilderByPage/>}/>
               <Route path="/seller/:id" element={<SellerAccount />}/>
               
 
             </Routes>
             <EndOfPage />
-          </Router>
+           
         </Web3ReactProvider>
         
       </div>

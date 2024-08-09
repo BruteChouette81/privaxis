@@ -7,6 +7,8 @@ See the License for the specific language governing permissions and limitations 
 */
 
 const express = require('express')
+//const jsdom = require("jsdom");
+//const { JSDOM } = jsdom;
 const bodyParser = require('body-parser')
 const awsServerlessExpressMiddleware = require('aws-serverless-express/middleware')
 //const fs = require("fs");
@@ -92,6 +94,8 @@ async function getProofData(topic) {
 const apiKey = "9GnfDHnyN7W9ptwQiXbWiOk5qPoJJQUDNMhgio8INcbhTspaTtBIRbWyoUFTTxsk" // migration to moralis v2
 const chain = "0x5"; //change for arbitrum
 const dynamodb = new AWS.DynamoDB.DocumentClient()
+const s3 = new AWS.S3();
+const cloudfront = new AWS.CloudFront();
 let priceName = "pricedata-dev"
 let tableName = "pricedata2-dev";
 let ItemName = "itemdb-dev"
@@ -420,7 +424,7 @@ app.post("/partnerConnection", (req, res) => {
       } else {
         if(result.Item) {
           if(result.Item.password==data.password) {
-            res.json({ bg: result.Item.bg, img: result.Item.img, cust_img: result.Item.cust_img, name: result.Item.name, address: result.Item.address, website: result.Item.website, dds: result.Item.dds})
+            res.json({ bg: result.Item.bg, img: result.Item.img, cust_img: result.Item.cust_img, name: result.Item.name, address: result.Item.address, website: result.Item.website, dds: result.Item.dds, device_id: result.Item.device_id})
           } else {
             res.send("error, bad password")
           }
@@ -441,6 +445,7 @@ app.post("/partnerConnection", (req, res) => {
               bg: newbg,
               img: newimg,
               cust_img: false,
+              device_id: ""
             }
           }
           console.log(create_params)
@@ -1208,6 +1213,46 @@ app.post("/manageFriend", (req, res) => {
 
 })
 
+app.post("/updateWebsite", async(req,res)=> {
+  //const bucketName = '';
+  const key = 'index.html'; // file name in the root level
+  
+
+  const params = {
+      Bucket: req.body.bucketName,
+      Key: key,
+      Body: req.body.html,
+      ContentType: 'text/html'
+  };
+
+  try {
+      const data = await s3.putObject(params).promise();
+      console.log('File uploaded successfully', data);
+
+      // Invalidate the CloudFront cache
+      const invalidationParams = {
+        DistributionId: req.body.distributionId,
+        InvalidationBatch: {
+            CallerReference: `my-invalidation-${Date.now()}`,
+            Paths: {
+                Quantity: 1,
+                Items: [`/${key}`] // Specify the path(s) to invalidate
+            }
+        }
+    };
+
+    const invalidationData = await cloudfront.createInvalidation(invalidationParams).promise();
+    console.log('Invalidation created successfully', invalidationData);
+      res.json({
+          statusCode: 200,
+          body: JSON.stringify('File uploaded successfully'),
+      });
+  } catch (err) {
+      console.error('Error uploading file', err);
+      res.send("error")
+  }
+})
+
 //handler to get metadata of a listed nft
 app.post("/metadata", async(req, res) => {
   try {
@@ -1264,6 +1309,8 @@ app.post("/getcode", async(req, res) => {
   
 })
 
+
+//webhook 1
 app.post("/connectterminal", (req, res) => {
   //webhook
   /**{
@@ -1294,16 +1341,16 @@ app.post("/connectterminal", (req, res) => {
   //save this
   console.log(req.body.data.device_code.device_id)
   const backparams = {
-    TableName: tableName,
+    TableName:  "partnerlogin",
     Key: {
-      users: req.body.account,
+      email: "elizbeth71@yahoo.ca",
     },
     //ExpressionAttributeNames: { '#bg': 'bg' },
     ExpressionAttributeValues: {},
     ReturnValues: 'UPDATED_NEW',
     };
     backparams.UpdateExpression = 'SET '
-    backparams.ExpressionAttributeValues[':device_id'] = req.body.background;
+    backparams.ExpressionAttributeValues[':device_id'] = req.body.data.device_code.device_id;
     backparams.UpdateExpression += 'device_id = :device_id'
 
     dynamodb.update(backparams, (error, result) => {
@@ -1317,6 +1364,182 @@ app.post("/connectterminal", (req, res) => {
     });
 })
 
+//webhook 2:
+app.post("/checkoutUpdate", (req, res) => {
+  //webhook
+  /**{
+  "merchant_id": "7NZR58EPNGNPC",
+  "type": "terminal.checkout.updated",
+  "event_id": "1c3ef831-670d-4f4c-b59c-f0bb2d2fc872",
+  "created_at": "2020-04-10T14:44:06.039Z",
+  "data": {
+    "type": "checkout",
+    "id": "dhgENdnFOPXqO",
+    "object": {
+      "checkout": {
+        "amount_money": {
+          "amount": 111,
+          "currency": "USD"
+        },
+        "app_id": "sq0idp-734Md5EcFjFmwpaR0Snm6g",
+        "created_at": "2020-04-10T14:43:55.262Z",
+        "deadline_duration": "PT5M",
+        "device_options": {
+          "device_id": "907CS13101300122",
+          "skip_receipt_screen": false,
+          "tip_settings": {
+            "allow_tipping": false
+          }
+        },
+        "id": "dhgENdnFOPXqO",
+        "note": "A simple note",
+        "payment_ids": [
+          "dgzrZTeIeVuOGwYgekoTHsPouaB"
+        ],
+        "reference_id": "id72709",
+        "status": "COMPLETED",
+        "updated_at": "2020-04-10T14:44:06.039Z"
+      }
+    }
+  }
+} */
+  //save this
+  if (req.body.data.status == "COMPLETED") { // update inventory
+    console.log(req.body)
+    let params = {
+      TableName:  ItemName,
+      Key: {
+        address: "0x3190b9754f22dd2b0514feff6bd299ee7514c777"
+      }
+    }
+    dynamodb.get(params, (error, result) => {
+      if (error) {
+        res.json({ statusCode: 500, error: error.message });
+      } else {
+          const itemId = result.Item.itemid
+          const oldScore = result.Item.score //list of all scores
+          var newScore = oldScore  //copy that list
+          //var newIds = itemId
+  
+          for (var i = 0; i < itemId.length; i++) { //loop over itemId
+            if(parseInt(req.body.data.note) === itemId[i]) {
+              newScore[i] = (oldScore[i]-1)
+              
+            }
+          }
+          
+  
+          const newItems_params = {
+            TableName: ItemName,
+            Key: {
+              address: "0x3190b9754f22dd2b0514feff6bd299ee7514c777",
+            },
+            ExpressionAttributeNames: { '#sc': 'score' },
+            ExpressionAttributeValues: {},
+            ReturnValues: 'UPDATED_NEW',
+          };
+          newItems_params.UpdateExpression = 'SET '
+          newItems_params.ExpressionAttributeValues[':score'] = newScore;
+          newItems_params.UpdateExpression += '#sc = :score'
+          
+  
+          dynamodb.update(newItems_params, (error, result) => {
+              if (error) {
+                console.log(error.message);
+                //res.json({error: error.message, params: newItems_params})
+              }
+              else {
+                console.log("success")
+              }
+          });
+        }
+    })
+
+  }
+  
+  
+})
+
+
+
+
+app.post("/get-website", async(req, res) => {
+  const puppeteer = require("puppeteer-core");
+  const chromium = require("@sparticuz/chromium");
+
+  const browser = await puppeteer.launch({
+    executablePath: await chromium.executablePath(),
+    headless: chromium.headless,
+    ignoreHTTPSErrors: true,
+    defaultViewport: chromium.defaultViewport,
+    args: [...chromium.args, "--hide-scrollbars", "--disable-web-security"],
+  });
+  const page = await browser.newPage();
+  
+  // Navigate to the URL
+  await page.goto(req.body.url, { waitUntil: 'networkidle2' });
+  
+  // Capture the content of the page
+  const htmlString = await page.content();
+  
+  await browser.close();
+  res.json({"dom":htmlString}) 
+  
+ 
+ 
+ 
+ 
+  /*nfetch(req.body.file).then((res) => res.text()).then((text) => {
+   
+    //const parts2 = text.split(`<script defer="defer" src="/static/js/main.aec6b021.js"></script><link href="/static/css/main.8dcbcb75.css" rel="stylesheet">`)
+    nfetch(req.body.file2).then((res) => res.text()).then((text2) => {
+        nfetch(req.body.file3).then((res) => res.text()).then((text3) => {
+          const dom = new JSDOM(text, { runScripts: 'dangerously' });
+
+          // Insert the CSS into the document
+          const styleElement = dom.window.document.createElement('style');
+          styleElement.textContent = text3;
+          dom.window.document.head.appendChild(styleElement);
+        
+          // Execute the JavaScript
+          const scriptElement = dom.window.document.createElement('script');
+          scriptElement.textContent = text2;
+          dom.window.document.body.appendChild(scriptElement);
+        
+          // Function to wait for React to finish rendering
+          function waitForReactToRender() {
+              return new Promise((resolve) => {
+                  const checkInterval = setInterval(() => {
+                      if (dom.window.document.querySelector('#root').innerHTML.trim() !== '') {
+                          clearInterval(checkInterval);
+                          resolve();
+                      }
+                  }, 100);
+              });
+          }
+        
+          // Function to generate HTML string for a specific route
+          async function generateHtmlString(route) {
+              dom.window.history.pushState({}, '', route);
+              await waitForReactToRender();
+              return dom.window.document.documentElement.outerHTML;
+          }
+        
+          // Example usage
+          generateHtmlString(req.body.url).then((htmlString) => {
+              //console.log(htmlString);
+            res.json({"dom":htmlString})
+              // You can save the HTML string to a file or use it as needed
+              //fs.writeFileSync('output_market.html', htmlString);
+          });
+
+
+
+        })})})*/
+ 
+ 
+    
+  })
 // Export the app object. When executing the application local this does nothing. However,
 // to port it to AWS Lambda we will create a wrapper around that will load the app from
 // this file

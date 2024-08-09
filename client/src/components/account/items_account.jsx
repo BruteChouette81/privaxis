@@ -1,19 +1,22 @@
 
 import {ethers} from 'ethers'
 import {useState, useEffect } from 'react';
-import { API } from 'aws-amplify';
+import { API, Storage } from 'aws-amplify';
 import ReactLoading from "react-loading";
 import { AES, enc } from "crypto-js"
 import axios from "axios";
 import DDSABI from '../../artifacts/contracts/DDS.sol/DDS.json'
 import realabi from '../../artifacts/contracts/nft.sol/nft.json'
-
+import { square_secret } from '../../apikeyStorer';
+import './css/items_account.css'
 const step = "Processing"
 const type = "spin"
 const color = "#0000FF"
 
 const key = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJmNjhjNmRmZi1mOGRmLTQzNzUtYjA5Ny1mMTNmNDk0OTk3ODIiLCJlbWFpbCI6ImhiYXJpbDFAaWNsb3VkLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImlkIjoiRlJBMSIsImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxfSx7ImlkIjoiTllDMSIsImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxfV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiI2ODFmYTNmZThmY2JmZTI5OTJmZSIsInNjb3BlZEtleVNlY3JldCI6IjcxOGRhMWFjMTRkZmNmMjVjMzM2YmZlYTI0MWUzODU2M2U1ZjJjOWNjOGJkNzdiY2RlMWE1OTY4YWQ4ZWJmNmEiLCJpYXQiOjE2ODUyODk0NDZ9.dheuwiicVcI3mM7yMo9voga4Bis7nDu7g5TJocC_xkc"
 
+
+const tags_list = ["Vases", "Casse-tête", "Soldes", "Produits corporels", "Accessoires", "Bouteilles & thermos", "Papeterie", "Cuisine", "Plantes, jardinage etc.", "Bougies et parfums d'ambiance", "Déco", "Linge de maison"]
 const getContract = (signer, abi, address) => {
     // get the end user
     console.log(signer)
@@ -49,7 +52,7 @@ function ItemsAccount (props) {
     const [description, setDescription] = useState("")
     const [itemPrice, setItemPrice] = useState(0)
     const [itemFee, setItemFee] = useState(0)
-    const [itemDays, setItemDays] = useState(0)
+    const [itemDays, setItemDays] = useState(10)
     const [tags, setTags] = useState([])
     const [itemLink, setItemLink] = useState([])
     const [createLoading, setCreateLoading] = useState(false)
@@ -57,6 +60,7 @@ function ItemsAccount (props) {
     const [descriptions, setDescriptions] = useState([])
     const [itemPrices, setItemPrices] = useState([])
     const [itemsDays, setItemsDays] = useState([])
+    const [score, setScore] = useState(1)
     
     const [image_file, setImage] = useState(null);
     const [images, setImages] = useState(null);
@@ -88,6 +92,10 @@ function ItemsAccount (props) {
             reader.readAsDataURL(event.target.files[0]);
             setImage(event.target.files[0])
         }
+    }
+
+    const onScoreChange = (event) => {
+        setScore(event.target.value)
     }
 
 
@@ -133,6 +141,16 @@ function ItemsAccount (props) {
         console.log(oldKeys)
         console.log(event)
     }
+
+    function setS3Config(bucket, level) {
+        Storage.configure({
+            bucket: bucket,
+            level: level,
+            region: "ca-central-1",
+            identityPoolId: 'ca-central-1:85ca7a33-46b1-4827-ae75-694463376952'
+        })
+    }
+
     const GetClient = (props) => { //account, did
 
         const [numItems, setNumItems] = useState(0)
@@ -144,19 +162,20 @@ function ItemsAccount (props) {
             const [clientId, setClientId] = useState([])
 
             const getClientInfo = async() => {
+                console.log(props.signer)
                 console.log("activated")
                 let key = await dds.getClientInfos(props.orderid - 1, props.orderid) //itemID, order ID or let keyid = ... keyid[0], keyid[1], keyid[0]
                 //console.log(key)
                 const item = await dds?.items(props.orderid - 1)
                 //console.log(item.tokenId)
                 
-                const nft = getContract(item.nft, realabi, props.signer)
+                const nft = getContract( props.signer, realabi, item.nft)
                 //console.log(nft)
 
                 const buyer_address = await nft.ownerOf(parseInt(item.tokenId))
                //console.log(buyer_address)
                 // go take hash form bucket file then, delete the file
-                //setS3Config("didtransfer", "public")
+                setS3Config("didtransfer", "public")
                 const file = await Storage.get(`${props.signer.address.toLowerCase()}/${buyer_address.toLowerCase()}.txt`)
                 fetch(file).then((res) => res.text()).then((text) => {
                         //console.log(text)
@@ -290,32 +309,18 @@ function ItemsAccount (props) {
 
         return (
             <div>
-                <h4>You have listed {numItems} Real Items </h4>
-                <h4>You need to confirm {orderIds?.lenght > 0 ? orderIds[0]?.length : orderIds?.length} purchase</h4>
-                <h5>Order Ids of command to verify: {orderIds.map(ids => ( <OrderToComplete name={ids.name} signer={props.signer} orderid={ids.orderId} did={props.did}/> ))}</h5>
+                <h4>{window.localStorage.getItem("language") == "fr" ? `Vous avez mis ${numItems} items en ligne` : `You have listed ${numItems} Real Items`} </h4>
+                <h4>{window.localStorage.getItem("language") == "fr" ? `Vous devez confirmer:` : `You need to confirm: `} {orderIds?.lenght > 0 ? orderIds[0]?.length : orderIds?.length} {window.localStorage.getItem("language") == "fr" ? `achats` : `purchases`}</h4>
+                <h5>Order Ids of command to verify:</h5>
+                {orderIds.map(ids => ( <OrderToComplete name={ids.name} signer={props.signer} orderid={ids.orderId} did={props.did}/> ))}
             </div>
         )
     }
 
     const onChangeTags = (event) => {
 
-        switch (event.target.value) {
-            case "1": 
-                setTag("nft")
-                console.log("nft")
-                break;
-            case "2": 
-                setTag("tickets")
-                console.log("tickets")
-                break;
-            case "3":
-                setTag("vp")
-                console.log("vp")
-                break;
-            default:
-                console.log("400: Bad request error code - 5")
-                break;
-        }
+        setTag(tags_list[parseInt(event.target.value)])
+        //console.log(tags_list[parseInt(event.target.value)])
     }
 
 
@@ -429,7 +434,7 @@ function ItemsAccount (props) {
                 console.log("https://ipfs.io/ipfs/" + cid)
                 //mint using oracle
                 try {
-                        
+                        //console.log(test.test.test)
                         console.log(itemPrice - itemFee)
                         //await mintReal(props.account, "https://ipfs.io/ipfs/" + cid, props.signer)
                         var data = {
@@ -459,8 +464,9 @@ function ItemsAccount (props) {
                                         address: window.localStorage.getItem("walletAddress").toLowerCase(),
                                         itemid: parseInt(response.hex), //market item id
                                         name: nftname, //get the name in the form
-                                        score: 0, //set score to zero
+                                        score: score, //quantitie tracker
                                         tag: tag, //"real" 
+                                        price: parseInt((itemPrice - itemFee).toFixed(2)*100000), 
                                         description: description,
                                         image: "https://ipfs.io/ipfs/" + cid
                                     }
@@ -495,6 +501,15 @@ function ItemsAccount (props) {
             alert("Need to fill our the whole form!")
         }
     }
+    function setS3Config(bucket, level) {
+        Storage.configure({
+            bucket: bucket,
+            level: level,
+            region: "ca-central-1",
+            identityPoolId: 'ca-central-1:85ca7a33-46b1-4827-ae75-694463376952'
+        })
+    }
+    
     const handleProof = async(e) => {
         e.preventDefault()
         //load DDS contract
@@ -522,7 +537,8 @@ function ItemsAccount (props) {
                     id: orderID,
                     proof: proof,
                     signature1: sig1,
-                    sandbox: true,
+                    prooving: props.contracts.prooving,
+                    sandbox: false,
                     transferMoney: false //only confirm 
                 }
             
@@ -552,6 +568,233 @@ function ItemsAccount (props) {
         
     }
 
+   
+
+    //goal make a easy loading item
+    function BasicLoadItem(props) {
+        const [editing , setEditing] = useState(false)
+        //console.log(props)
+        let newName = ""
+        let newDes = ""
+        let newPrice = ""
+        let newScore = ""
+
+        const onNewNameChange = (event) => {
+            newName = event.target.value
+        }
+        const onNewDesChange = (event) => {
+            newDes = event.target.value
+        }
+
+        const onNewScoreChange = (event) => {
+            newScore = event.target.value
+        }
+
+        const onNewPriceChange = (event) => {
+            newPrice = event.target.value
+        }
+
+
+        const deleteItem = () => {
+            try {
+                var url = "/updateScore"
+        
+                var data = {
+                    body: {
+                        address: window.localStorage.getItem("walletAddress").toLowerCase(),
+                        oldid: parseInt(props.id),
+                        newid: parseInt(props.id), //market item id
+                        score: 0, //quantitie tracker
+                    }
+                }
+    
+                var url = "/updateScore"
+    
+                API.post('serverv2', url, data).then((response) => {
+                    console.log(response)
+                    alert('Deleted Item: ' + props.id)
+                   
+                  
+                })
+        
+                
+            }
+            catch(error) {
+                alert("Unable to delete Item (" + props.id + "). Error code - 60")
+                console.log(error)
+            }
+        }
+
+        const createCheckout = () => {
+            var data = {
+                body: {
+                    url: "https://connect.squareup.com/v2/terminals/checkouts",
+                    data: {
+                        method:"post",
+                        headers: {
+                           
+                            'Authorization': `Bearer ${square_secret}`,
+                            'Content-Type': 'application/json',
+                            'Square-Version': '2024-06-04',
+                            
+                            },
+                        body: JSON.stringify({ 
+                            "idempotency_key": "id" + Math.random().toString(16).slice(2),
+                            "checkout": {
+                            "amount_money": {
+                                "amount": props.price,
+                                "currency": "CAD"
+                            },
+                            "reference_id": "id11572",
+                            "device_options": {
+                                "device_id": props.device_id
+                            },
+                            "note": `${props.id}`,
+                            "location_id": "LY9PJBHERNETY",
+                                                },
+                })
+            }}}
+            API.post('server',"/getcode", data).then((res) => {
+                console.log(res)
+            })
+        }
+
+        const UpdateItemToDB = (e) => {
+            e.preventDefault()
+            console.log(newName)
+            console.log(newPrice)
+            console.log(newDes)
+            var url = "/updateScore"
+        
+            var data = {
+                body: {
+                    address: window.localStorage.getItem("walletAddress").toLowerCase(),
+                    id: parseInt(props.id),
+                    score: newScore ? parseInt(newScore) : parseInt(props.score), //quantitie tracker,
+                    name: newName ? newName : props.name,
+                    des: newDes ? newDes : props.description,
+                    price: newPrice ? parseInt((parseFloat(newPrice) - (parseFloat(newPrice) *0.029+4.6)).toFixed(2)*100000) : parseInt((parseFloat(props.price) - (parseFloat(props.price) *0.029+4.6)).toFixed(2)*100000)
+                }
+            }
+            console.log(data.body)
+
+            var url = "/updateScore"
+
+            API.post('serverv2', url, data).then((response) => {
+                console.log(response)
+                alert('Updated Item: ' + props.id)
+                
+                
+            })
+
+
+        }
+
+       
+
+        return (
+            
+            <div class="nftbox">
+                <a href={props.image}><img id='itemimg' src={props.image} alt="" /></a>
+                <br />
+                <br />
+                <h4>{props.name}</h4>
+                
+                
+                <p>Description: {props.description}</p>
+                <p>Price: {props.price}</p>
+                <p>Quantity: {props.score}</p>
+                {props.score ? <button class="btn btn-primary" onClick={()=> {createCheckout()}}>Create Checkout</button> : <p>No more items...</p>}
+                <br />
+                <br />
+                {props.score ? <button class="btn btn-danger" onClick={()=> {deleteItem()}}>Delete</button> : ""}
+                <br />
+                <br />
+                <button class="btn btn-info" onClick={()=> {setEditing(!editing)}}>Edit Item</button>
+                {editing ? <div>
+                    <form class="test1" onSubmit={UpdateItemToDB}>      
+                    <label for="Name" class="form-label">Name:</label> <input class="form-control" id="Name" type="text" placeholder={props.name} onChange={onNewNameChange}/>
+                                            
+                        <div class="mb-3">
+                            <label for="exampleFormControlTextarea1" class="form-label">Description</label>
+                            <textarea class="form-control" id="exampleFormControlTextarea1" rows="3" onChange={onNewDesChange}>{props.description}</textarea>
+                        </div>
+                        
+                        <label for="Price" class="form-label">Price:</label> <input id="Price" class="form-control" type="text" placeholder={props.price} onChange={onNewPriceChange}/>    
+
+                        <label for="Quantity" class="form-label">Quantity:</label> <input id="Quantity" class="form-control" type="text" placeholder={props.score} onChange={onNewScoreChange}/>    
+                        
+                        <input type="submit" class="btn btn-primary" value="Update!" /> 
+                                                            
+                    </form>
+                </div> : ""}
+                
+
+            </div>
+          
+        )
+
+
+    }
+
+
+    function DisplayAllItems(props) {
+        const [numRealItems, setNumRealItems] = useState()
+        const [search, setSearch] = useState("")
+       
+        let searching = ""
+
+        const onSearchChange = (event) => {
+            searching = event.target.value
+
+        }
+
+        const OnSearchSubmit = (e) => {
+            e.preventDefault()
+            setSearch(searching)
+        }
+
+
+
+        const bootAllItems = () =>{
+            var data = {
+                body: {
+                    address: window.localStorage.getItem("walletAddress"),
+                }
+            }
+            var url = "/getItems"
+            API.post('serverv2',  url, data).then((response) => {
+                console.log(response)
+                setNumRealItems({
+                    "names": response.names,
+                    "descriptions": response.descriptions,
+                    "images": response.image,
+                    "ids": response.ids,
+                    "prices": response.prices,
+                    "scores": response.scores
+                })
+            })
+        }
+
+        useEffect(()=> {
+           
+            bootAllItems()
+           
+        }, [setNumRealItems])
+        //name={numRealItems?.names[k]} description={numRealItems?.descriptions[k]} image={numRealItems?.images[k]}
+        //name={numRealItems?.names} description={numRealItems?.descriptions} image={numRealItems?.images}
+        return (
+            <div>
+                <form class="d-flex" onSubmit={OnSearchSubmit}>
+                <input class="form-control me-2" type="search" placeholder="Search" aria-label="Search" onChange={onSearchChange}/>
+                <button class="btn btn-outline-success" type="submit">Search</button>
+            </form>
+                {numRealItems ? Array.from({ length: numRealItems?.ids?.length }, (_, k) => search ? numRealItems?.names[k].toLowerCase().includes(search) ?(<BasicLoadItem id={parseInt(numRealItems?.ids[k])} device_id={props.device_id} score={numRealItems?.scores[k]} price={parseFloat((numRealItems?.prices[k]/100000) / (1 - 0.029) + 4.6).toFixed(2)} name={numRealItems?.names[k]} description={numRealItems?.descriptions[k]} image={numRealItems?.images[k]} />  ) : "" : (<BasicLoadItem id={parseInt(numRealItems?.ids[k])} score={numRealItems?.scores[k]} device_id={props.device_id} price={parseFloat((numRealItems?.prices[k]/100000) / (1 - 0.029) + 4.6).toFixed(2)} name={numRealItems?.names[k]} description={numRealItems?.descriptions[k]} image={numRealItems?.images[k]} />  )) : <div style={{paddingLeft: 40 + "%"}}><ReactLoading type={type} color={color}
+            height={200} width={200} /><h5>Account loading...</h5></div>}
+            </div>
+        )
+    }
+
     useEffect(() => {
             const contract = getContract(props.signer, DDSABI, props.contracts.dds)
             setdds(contract)
@@ -560,46 +803,10 @@ function ItemsAccount (props) {
 
     const return_to_home = () => {
         props.setDisplay(false)
-    }
-    return(
-        <div class="itemsaccount">
-            <button type="button" class="btn-close" aria-label="Close" onClick={() => {return_to_home()}} style={{"float":"right"}}></button>
-             <div class="container">
-                <div class="row">
-                    <div class="col">
-                    <h1>Manage your items</h1>
-                    <button class="btn btn-primary" onClick={() => {displayCreateForm()}}>Create a new item</button>
-                        {displayItemCreator ? (
-                        <form class="test1" onSubmit={createReal}>                              
-                            <div class="mb-3">
-                                <label for="formFile" class="form-label">Image of the Item</label>
-                                <input class="form-control" type="file" accept='image/png, image/jpeg' id="formFile" onChange={onImageChange}/>
-                            </div>
-                            <br />
-                            <input class="form-control" type="text" placeholder="Name" onChange={onNameChange}/>    
-                            <br />  
-                            <input class="form-control" type="text" placeholder="Description" onChange={onDescriptionChange}/>    
-                            <br />
-                            <input class="form-control" type="number" placeholder="Price of the Item (in $)" onChange={onItemPriceChange}/>    
-                            <br />
-                            <p>*Price in Canadian Dollars (CAD)</p>
-                            <p>Total Fee: {parseFloat(itemFee).toFixed(2)} $ or {parseFloat(itemFee/itemPrice*100).toFixed(2)}%</p>
-                            <p>Total received: {itemPrice - itemFee} $</p>
-                            <p>Staking Program: 3-9 months to <strong>refund</strong> your fees and even make a profit using our staking program!</p>
-                            <br />
-                            <input class="form-control" type="number" placeholder="Number of day to send the Item" onChange={onItemDaysChange}/>    
-                            <br />
-                            <div class="form-floating">
-                                <select onChange={onChangeTags} class="form-select" id="floatingSelect" aria-label="Floating label select example">
-                                    <option selected>Categorize your digital item </option>
-                                    <option value="1" >Imperssionisme</option>
-                                    <option value="2" >Nature Morte</option>
-                                    <option value="3" >Realisme</option>
-                                </select>
-                                <label for="floatingSelect">Tag</label>
-                            </div>
-                            <br />
-                            <div>
+    } //0x3190b9754f22dd2b0514feff6bd299ee7514c777 0x0FcB03b5C04AC603680921ac9B1894D0919a767F
+    //<br />
+    //<input class="form-control" type="number" placeholder="Number of day to send the Item" onChange={onItemDaysChange}/>    
+    /**  <div>
                                 <input type="button" class="btn btn-secondary" value="Add attribute" onClick={onAddedAttribute}/><br />
                                 <br />
                                 <br />
@@ -616,15 +823,53 @@ function ItemsAccount (props) {
                                 
                                 <br /> <br />
                                 {Array(numAttribute).fill(true).map((_, i) =><div key={i}> <input class="form-control" id={i} type="text" onChange={onAddedKey} placeholder={`key ${i}`}/> <input class="form-control" type="text" id={i} onChange={onAddedValue} placeholder={`value ${i}`}/> <br /> <input type="button" class="btn btn-danger" value="Remove" onClick={onRemoveAttribute}/> <br /> <br /></div>)}
+                            </div> <input type="submit" class="btn btn-warning" value="add" />*/
+    return(
+        <div class="itemsaccount">
+            <button type="button" class="btn-close" aria-label="Close" onClick={() => {return_to_home()}} style={{"float":"right"}}></button>
+             <div class="container">
+                <div class="row">
+                    <div class="col">
+                    <h1>{window.localStorage.getItem("language") == "fr" ? "Ajouter des items" : "Manage your Items"}</h1>
+                    <button class="btn btn-primary" onClick={() => {displayCreateForm()}}>{window.localStorage.getItem("language") == "fr" ? "Ajouter un nouvel item" : "Create a new item"}</button>
+                        {displayItemCreator ? (
+                        <form class="test1" onSubmit={createReal}>                              
+                            <div class="mb-3">
+                                <label for="formFile" class="form-label">{window.localStorage.getItem("language") == "fr" ? "Image de l'item" : "Image of the item"}</label>
+                                <input class="form-control" type="file" accept='image/png, image/jpeg' id="formFile" onChange={onImageChange}/>
                             </div>
-                            <input type="submit" class="btn btn-primary" value="Submit" /> <input type="submit" class="btn btn-warning" value="add" />
+                            <br />
+                            <input class="form-control" type="text" placeholder="Name" onChange={onNameChange}/>    
+                            <br />  
+                            <input class="form-control" type="text" placeholder="Description" onChange={onDescriptionChange}/>    
+                            <br />
+                            <input class="form-control" type="text" placeholder="Quantity" onChange={onScoreChange}/>    
+                            <br />
+                            <input class="form-control" type="number" placeholder="Price of the Item (in $)" onChange={onItemPriceChange}/>    
+                            <br />
+                            <p>{window.localStorage.getItem("language") == "fr" ? "*Prix en dollars canadiens (CAD)" : "*Price in Canadian Dollars (CAD)"}</p>
+                            
+                            
+                            <br />
+                            <div class="form-floating">
+                                <select onChange={onChangeTags} class="form-select" id="floatingSelect" aria-label="Floating label select example">
+                                    <option selected>{window.localStorage.getItem("language") == "fr" ? "Catégorie" : "Categorize your digital item"} </option>
+                                    {Array.from({ length: tags_list.length }, (_, k) => <option value={k} >{tags_list[k]}</option> )}
+                                    
+                                  
+                                </select>
+                                <label for="floatingSelect">Tag</label>
+                            </div>
+                            <br />
+                          
+                            <input type="submit" class="btn btn-primary" value="Submit" /> 
                                                             
                         </form>) : ""}
                         
                     </div>
                     <div class="col">
-                        <h1>Orders to complete</h1>
-                        <button class="btn btn-primary" onClick={() => {displayProoverForm()}}>See orders</button>
+                        <h1>{window.localStorage.getItem("language") == "fr" ? "Commande en ligne à compléter" : "Orders to complete"}</h1>
+                        <button class="btn btn-primary" onClick={() => {displayProoverForm()}}>{window.localStorage.getItem("language") == "fr" ? "Voir les commandes" : "See orders"}</button>
                         {displayProover ?  submitLoading ? (<div style={{paddingLeft: 25 + "%"}}><ReactLoading type={type} color={color}
         height={200} width={200} /><h5>{step} loading...</h5></div>) :(
                             <div>
@@ -640,6 +885,10 @@ function ItemsAccount (props) {
                         ) : ""}
                        
                     </div>
+                </div>
+                <div class="row">
+                        {displayItemCreator || displayProover ? "" : <DisplayAllItems device_id={props.device_id} /> }
+
                 </div>
             </div>
            

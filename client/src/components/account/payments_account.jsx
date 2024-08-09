@@ -1,6 +1,6 @@
 
 import axios from "axios"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -16,6 +16,9 @@ import {
 import { Line } from 'react-chartjs-2';
 import { API } from "aws-amplify";
 
+import testimg from './css/Collection-Terminal-HeroArtwork_2x.png'
+
+import { square_secret } from "../../apikeyStorer";
 
 
 ChartJS.register(
@@ -30,7 +33,7 @@ ChartJS.register(
     Legend
   );
   
-const AllPayments = () => {
+const AllPayments = (props) => {
     const [paypalEmail, setPaypalEmail] = useState("")
 
     const onPaypalEmailChange = (event) => {
@@ -42,28 +45,47 @@ const AllPayments = () => {
         window.localStorage.setItem("moneyAddress", paypalEmail)
         alert("Succefully updated your Paypal Address!")
     }
+
+    const updatedPayment = (method) => {
+        window.localStorage.setItem("payment_method", method)
+        window.location.reload()
+    }
+
     return (<div className="payChart">
-                <h2>Total: <strong>115.3k</strong></h2>
-                <h4>Get paid using <img src="https://www.pngall.com/wp-content/uploads/2016/03/Paypal-Logo-PNG.png" alt="" style={{"height":"50px", "width":"auto"}} /></h4>
-                <p>Enter a valid paypal-connected email and get payed using paypal.</p>
+                <h2>Total: <strong>{props.total} $</strong></h2>
+                <div class="form-check">
+                <input class="form-check-input" type="radio" name="flexRadioDefault" id="flexRadioDefault1" onClick={() => {updatedPayment("transfer")}} checked={(window.localStorage.getItem("payment_method") == "transfer")}/>
+                <label class="form-check-label" for="flexRadioDefault1">
+                Get Paid with transfer
+                </label>
+                </div>
+                <div class="form-check">
+                <input class="form-check-input" type="radio" name="flexRadioDefault" id="flexRadioDefault2" onClick={() => {updatedPayment("paypal")}} checked={(window.localStorage.getItem("payment_method") == "paypal")}/>
+                <label class="form-check-label" for="flexRadioDefault2">
+                Get paid using <img src="https://www.pngall.com/wp-content/uploads/2016/03/Paypal-Logo-PNG.png" alt="" style={{"height":"40px", "width":"auto"}} />
+                </label>
+                </div>
+                
+                
+                {window.localStorage.getItem("payment_method") == "paypal"? <div><p>Enter a valid paypal-connected email and get payed using paypal.</p>
                 <form onSubmit={handleNewPaypalEmail}>
                     {window.localStorage.getItem("moneyAddress") ? <input type="email" id="email" name="email" class="form-control" placeholder={window.localStorage.getItem("moneyAddress")} onChange={onPaypalEmailChange}/>   : <input type="email" id="email" name="email" class="form-control" placeholder="paypal@test.com" onChange={onPaypalEmailChange}/>  }  
                     <br />
                     <input type="submit" class="btn btn-primary" value="Update email" />
-                </form>
+                </form></div> : ""}
             </div>)
 }
 
 const AllWallet = () => {
-    const [feered, setFeered] = useState(true)
+    const [feered, setFeered] = useState(false)
     const activateFeeRed = () => {
         console.log("activated")
         setFeered(!feered)
     }
     return (<div className="payChart">
-    <h2>Money in App: <strong>220.1k</strong></h2>
+    <h2>Money in App: <strong>0</strong></h2>
     <div class="form-check form-switch">
-    <input class="form-check-input" type="checkbox" id="flexSwitchCheckChecked" onChange={()=> {activateFeeRed()}} checked={feered}/>
+    <input class="form-check-input" type="checkbox" id="flexSwitchCheckChecked" onChange={()=> {activateFeeRed()}} checked={feered} disabled/>
     <label class="form-check-label" for="flexSwitchCheckChecked">Fee reduction system</label>
     </div>
    
@@ -98,20 +120,20 @@ const options = {
     ],
   };
   
-const MoneyInChart = () => {
+const MoneyInChart = (props) => {
       return (
           <div class="itemsold">
-              <p>Money in: <strong>115.1k</strong> $</p>
-              <Line options={options} data={data} />
+              <p>Money in: <strong>{props.total} $</strong> </p>
+              <Line options={options} data={props.data} />
           </div>
       )
 }
 
-const MoneyOutChart = () => {
+const MoneyOutChart = (props) => {
     return (
         <div class="itemsold">
-            <p>Money out: <strong>30.2k</strong> $</p>
-            <Line options={options} data={data} />
+            <p>Money out: <strong>{props.total} $</strong> </p>
+            <Line options={options} data={props.data} />
         </div>
     )
 }
@@ -131,32 +153,15 @@ function PaymentsAccount(props) {
     const create_device_code = () => {
         // "location_id": "NHT...CGJ" create a real location for each client
         setCreating(true)
-        const params = {
-            method:"post",
-            headers: {
-               
-                'Authorization': 'Bearer EAAAlwEUS-f0w6Gclw4A2IYcslFl5teIZyYbTW3JWhyGmfau4av6UpU_koIkCRzX',
-                'Content-Type': 'application/json',
-                'Square-Version': '2024-06-04',
-                
-                },
-            body:{ 
-                "idempotency_key": "123-456-789", //uuid
-                "device_code": {
-                    "name": "Terminal 1",
-                    "location_id": "LCE9JT6P77K6W",
-                    "product_type": "TERMINAL_API",
-                    }
-                }
-            }
+    
         var data = {
             body: {
-                url: "https://connect.squareupsandbox.com/v2/devices/codes",
+                url: "https://connect.squareup.com/v2/devices/codes",
                 data: {
                     method:"post",
                     headers: {
                        
-                        'Authorization': 'Bearer EAAAlwEUS-f0w6Gclw4A2IYcslFl5teIZyYbTW3JWhyGmfau4av6UpU_koIkCRzX',
+                        'Authorization': `Bearer ${square_secret}`,
                         'Content-Type': 'application/json',
                         'Square-Version': '2024-06-04',
                         
@@ -165,7 +170,7 @@ function PaymentsAccount(props) {
                         "idempotency_key": "123-456-789", //uuid
                         "device_code": {
                             "name": "Terminal 1",
-                            "location_id": "LCE9JT6P77K6W",
+                            "location_id": "LY9PJBHERNETY",
                             "product_type": "TERMINAL_API",
                             }
                         })
@@ -193,12 +198,12 @@ function PaymentsAccount(props) {
             "headers": {
                 'content-type': 'application/json',
                 'Square-Version': '2024-06-04',
-                'Authorization': 'Bearer EAAAlwEUS-f0w6Gclw4A2IYcslFl5teIZyYbTW3JWhyGmfau4av6UpU_koIkCRzX'
+                'Authorization': `Bearer ${square_secret}`
                 }
             }
-        axios.get("https://connect.squareupsandbox.com/v2/devices/{device_id}", params).then((res) => {
-            console.log(res.body.device.status)
-            setStatus(res.body.device.status)
+        fetch(`https://connect.squareup.com/v2/devices/${props.device_id}`, params).then((res) => {
+            console.log(res.body)
+            //setStatus(res.body?.device?.status?.category)
         })
         //returns: 
         /**
@@ -280,16 +285,22 @@ function PaymentsAccount(props) {
                 </div>)}
                 
                 {dcode.length > 0 ? <h2>Square terminal code: {dcode}</h2> : ""}
-                <p style={{"color": "red"}}>Status: No terminal connected</p>
+                {status == "AVAILABLE" ? <div> <p style={{"color": "green"}}>Status: connected</p> <img src={testimg} alt="" style={{"width": "150px", "height": "auto"}} /></div> : <p style={{"color": "red"}}>Status: No terminal connected</p>}
+
             </div>
         </div>)
     }
+
 
     const CustomersLoyalty = () => {
         return (<div className="payChart">
             <h2>Connect your Gift Cards</h2>
         </div>)
     }
+
+    useEffect(() => {
+        get_paired_device()
+    })
 
 
     const return_to_home = () => {
@@ -303,7 +314,7 @@ function PaymentsAccount(props) {
         <div class="container">
                 <div class="row">
                     <div class="col">
-                        <AllPayments/>
+                        <AllPayments total={props.total}/>
                     </div>
                     <div class="col">
                         <AllWallet/>
@@ -314,10 +325,10 @@ function PaymentsAccount(props) {
                 </div>
                 <div class="row">
                     <div class="col">
-                        <MoneyInChart/>
+                        <MoneyInChart total={props.total} data={props.data}/>
                     </div>
                     <div class="col">
-                        <MoneyOutChart/>
+                        <MoneyOutChart total={props.total} data={props.data}/>
                     </div>
                     <div class="col">
                         <ConnectTerminal/>

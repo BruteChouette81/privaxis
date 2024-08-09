@@ -133,6 +133,27 @@
       "permissions": {
         "setting": "open"
       }
+    },
+    "/get-website": {
+      "name": "/get-website",
+      "lambdaFunction": "mylambda",
+      "permissions": {
+        "setting": "open"
+      }
+    },
+    "/checkoutUpdate": {
+      "name": "/checkoutUpdate",
+      "lambdaFunction": "mylambda",
+      "permissions": {
+        "setting": "open"
+      }
+    },
+    "/updateWebsite": {
+      "name": "/updateWebsite",
+      "lambdaFunction": "mylambda",
+      "permissions": {
+        "setting": "open"
+      }
     }
   }
 }
