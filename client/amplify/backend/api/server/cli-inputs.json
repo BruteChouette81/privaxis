@@ -154,6 +154,20 @@
       "permissions": {
         "setting": "open"
       }
+    },
+    "/oauthCallback": {
+      "name": "/oauthCallback",
+      "lambdaFunction": "mylambda",
+      "permissions": {
+        "setting": "open"
+      }
+    },
+    "/squareTools": {
+      "name": "/squareTools",
+      "lambdaFunction": "mylambda",
+      "permissions": {
+        "setting": "open"
+      }
     }
   }
 }

@@ -127,7 +127,7 @@ def create_gift_card(type, balance, gan):
     response = requests.post(gift_card_url, headers=headers, json=payload)
     return response.json()
 
-def load_items_csv():
+def load_items():
 
     #important categories: 
     """ 1: Item Name

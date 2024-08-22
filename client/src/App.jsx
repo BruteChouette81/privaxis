@@ -49,6 +49,20 @@ Amplify.configure({
       region: "ca-central-1",
     }
     
+  },
+  API: {
+    endpoints: [
+      {
+        name: "server",
+        endpoint: "https://6pvpjdu5ue.execute-api.ca-central-1.amazonaws.com/dev",
+        region: "ca-central-1"
+    },
+    {
+        name: "serverv2",
+        endpoint: "https://f5auzuxklj.execute-api.ca-central-1.amazonaws.com/dev",
+        region: "ca-central-1"
+    }
+    ]
   }
 })
 

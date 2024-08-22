@@ -424,7 +424,7 @@ app.post("/partnerConnection", (req, res) => {
       } else {
         if(result.Item) {
           if(result.Item.password==data.password) {
-            res.json({ bg: result.Item.bg, img: result.Item.img, cust_img: result.Item.cust_img, name: result.Item.name, address: result.Item.address, website: result.Item.website, dds: result.Item.dds, device_id: result.Item.device_id})
+            res.json({ bg: result.Item.bg, img: result.Item.img, cust_img: result.Item.cust_img, name: result.Item.name, address: result.Item.address, website: result.Item.website, dds: result.Item.dds, device_id: result.Item.device_id, partner_api_access: result.Item.partner_api_access, transfer_data: result.Item.transfer_data})
           } else {
             res.send("error, bad password")
           }
@@ -445,7 +445,11 @@ app.post("/partnerConnection", (req, res) => {
               bg: newbg,
               img: newimg,
               cust_img: false,
-              device_id: ""
+              dds: data.dds,
+              partner_api_access: data.api_access,
+              device_id: "",
+              transfer_data: [],
+              website: data.website
             }
           }
           console.log(create_params)
@@ -768,6 +772,32 @@ app.put("/uploadFile", (req, res) => {
       })
      
     }
+  }
+  if (req.body.transfer_data) {
+    
+    const transferparams = {
+      TableName: "partnerlogin",
+      Key: {
+        email: req.body.email,
+      },
+      ExpressionAttributeNames: { '#td': 'transfer_data' },
+      ExpressionAttributeValues: {},
+      ReturnValues: 'UPDATED_NEW',
+    };
+    payparams.UpdateExpression = 'SET '
+    payparams.ExpressionAttributeValues[':transferData'] = req.body.transfer_data;
+    payparams.UpdateExpression += '#td = :transferData'
+
+    dynamodb.update(transferparams, (error, result) => {
+        if (error) {
+          console.log(error.message);
+          res.json({error: error.message, params: transferparams})
+        }
+        else {
+          res.send("done")
+        }
+    });
+
   }
   
   
@@ -1458,6 +1488,118 @@ app.post("/checkoutUpdate", (req, res) => {
   }
   
   
+})
+
+app.post('/oauthCallback', async (req, res) => {
+  const authorizationCode = req.body.code;
+  const headers = {
+    'Square-Version': '2023-07-26',
+    'Authorization': `Bearer EAAAlnDI3enkFLK0vaVLsFnlZAwi5K2aqAqnrMG_d_vBzyGR13Rh04Ik8lNSH9Py`,
+    'Content-Type': 'application/json',
+  };
+
+  try {
+    const response = await nfetch('https://connect.squareup.com/oauth2/token', {
+      method: "POST",
+      headers: headers,
+      body: {
+        client_id: req.body.clientId,
+        client_secret: req.body.clientSecret,
+        code: authorizationCode,
+        grant_type: 'authorization_code',
+        redirect_uri: req.body.redirectUri
+      }
+    });
+
+    const accessToken = response.data.access_token;
+    
+    // Save the access token securely, e.g., in a database
+    console.log('Access Token:', accessToken);
+
+    //res.redirect('/success');
+    res.json({'access_token': accessToken})
+  } catch (error) {
+    console.error('Error exchanging authorization code for access token:', error);
+    res.status(500).send('Something went wrong');
+  }
+});
+
+
+//square tools for 3 types of actions: transfer sales data, transfer Items data (copy inventory) and transfer gift cards (balance and gan)
+app.post('/squareTools', async (req, res) => {
+    async function loadSalesData(key, email) {
+      const headers = {
+        'Square-Version': '2023-07-26',
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json',
+    };
+      let dataLastYear = Array(12).fill(0);
+      let moneyLastYear = Array(12).fill(0);
+
+      // Specify the date range (last 12 months)
+      const beginTime = '2023-08-01T19:34:33.524Z';
+      const endTime = '2024-08-01T19:34:33.524Z';
+
+      let sales = [];
+      let cursor = null;
+
+      while (true) {
+          try {
+              const paymentUrl = `${baseUrl}/payments?cursor=${cursor}&begin_time=${beginTime}&end_time=${endTime}`;
+              const response = await nfetch(paymentUrl, {method: "POST",
+                headers: headers});
+              const responseData = response.data;
+              sales = [...sales, ...responseData.payments];
+              cursor = responseData.cursor;
+
+              if (!cursor) break;
+          } catch (error) {
+              console.error("Error fetching sales data:", error);
+              break;
+          }
+      }
+
+      sales.forEach(sale => {
+          const date = DateTime.fromISO(sale.updated_at);
+          const month = date.month;
+          dataLastYear[month - 1] += 1;
+          moneyLastYear[month - 1] += sale.amount_money.amount;
+      });
+
+      const transferparams = {
+          TableName: "partnerlogin",
+          Key: {
+            email: email,
+          },
+          ExpressionAttributeNames: { '#td': 'transfer_data' },
+          ExpressionAttributeValues: {},
+          ReturnValues: 'UPDATED_NEW',
+        };
+        payparams.UpdateExpression = 'SET '
+        payparams.ExpressionAttributeValues[':transferData'] = [dataLastYear, moneyLastYear];
+        payparams.UpdateExpression += '#td = :transferData'
+    
+        dynamodb.update(transferparams, (error, result) => {
+            if (error) {
+              console.log(error.message);
+              res.json({error: error.message, params: transferparams})
+            }
+            else {
+              res.send("done")
+            }
+        });
+
+      return { dataLastYear, moneyLastYear };
+  }
+
+  if (req.body.type === "sales") {
+    let salesData = await loadSalesData()
+    console.log(salesData)
+    res.send("success")
+
+  }
+
+  //all tested square tools
 })
 
 

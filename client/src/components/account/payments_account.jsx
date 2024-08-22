@@ -121,9 +121,18 @@ const options = {
   };
   
 const MoneyInChart = (props) => {
+    const loadFromSquare = () => {
+        API.post('server', '/squareTools', {body:{"type": "sales", "key": props.key}}).then((response) => {
+            console.log(response)
+            alert("Imported data from square!")
+        })
+    }
+    
       return (
           <div class="itemsold">
+            
               <p>Money in: <strong>{props.total} $</strong> </p>
+              {props.data?.datasets[0]?.data[0] ? "" : <button class="btn btn-primary" onClick={loadFromSquare}>load info from square</button>}
               <Line options={options} data={props.data} />
           </div>
       )

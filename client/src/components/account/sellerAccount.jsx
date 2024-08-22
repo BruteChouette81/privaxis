@@ -1,5 +1,10 @@
 
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
+import { lazy } from 'react';
+
+
+//import { dds_bytecode, buying_bytecode, minting_bytecode,  } from '../../artifacts/contracts/bytecodes';
+
 
 import {ethers} from 'ethers'
 import {useState, useEffect } from 'react';
@@ -27,7 +32,7 @@ import ItemsAccount from './items_account';
 import {Buffer} from 'buffer';
 
 
-import { CLIENT_ID, APP_SECRET } from '../../apikeyStorer';
+import { CLIENT_ID, APP_SECRET, square_client, square_client_secret } from '../../apikeyStorer';
 
 
 import './css/sellerprofile.css'
@@ -52,6 +57,12 @@ import PaymentsAccount from "./payments_account"
 
 import Credit from '../../artifacts/contracts/token.sol/credit.json';
 import DDSABI from '../../artifacts/contracts/DDS.sol/DDS.json'
+import buying_abi from '../../artifacts/contracts/buying.sol/buying.json'
+import minting_abi from '../../artifacts/contracts/minting.sol/minting.json'
+import prooving_abi from '../../artifacts/contracts/prooving.sol/prooving.json'
+
+
+
 
 import { square_secret } from '../../apikeyStorer';
 
@@ -201,6 +212,65 @@ const connectWIPFS = async(e) => {
 
 const contractAddress = '0x6CFADe18df81Cd9C41950FBDAcc53047EdB2e565';
 const DDSADDr = '0x0c50409C167e974e4283F23f10BB21d16BE956A9';
+
+
+//function to create new contracts 
+const publishContracts = async () => {
+    //need dds, dds_buying, dds_minting and dds_prooving abis
+    //need credit and real_nft addresses
+    //need to connect to pool account for creation
+    const dds_bytecode = lazy(() => import('../../artifacts/contracts/bytecodes'))
+    const buying_bytecode = lazy(() => import('../../artifacts/contracts/bytecodes'))
+    const minting_bytecode = lazy(() => import('../../artifacts/contracts/bytecodes'))
+    const prooving_bytecode = lazy(() => import('../../artifacts/contracts/bytecodes'))
+    
+    //credit address
+    const credit_addr = "0x6CFADe18df81Cd9C41950FBDAcc53047EdB2e565"
+    const nft_addr = ""
+
+    let pk = ""
+    const provider = new ethers.providers.InfuraProvider("sepolia", "1595c0d504a04055a0c61fb5b2cf4eb6")
+    const signer = new ethers.Wallet(pk, provider)
+
+    const dds_factory = new ethers.ContractFactory(DDSABI, dds_bytecode, signer)
+    const dds_contract = await dds_factory.deploy(credit_addr, nft_addr);
+    const dds_receipt = await dds_contract.deployTransaction.wait();
+
+    const dds_buy_factory = new ethers.ContractFactory(buying_abi, buying_bytecode, signer)
+    const dds_buy_contract = await dds_buy_factory.deploy(dds_contract.address, credit_addr);
+    const dds_buy_receipt = await dds_buy_contract.deployTransaction.wait();
+
+    const dds_mint_factory = new ethers.ContractFactory(minting_abi, minting_bytecode, signer)
+    const dds_mint_contract = await dds_mint_factory.deploy(dds_contract.address, credit_addr, nft_addr);
+    const dds_mint_receipt = await dds_mint_contract.deployTransaction.wait();
+
+    const dds_proove_factory = new ethers.ContractFactory(prooving_abi, prooving_bytecode, signer)
+    const dds_proove_contract = await dds_proove_factory.deploy(dds_contract.address, credit_addr);
+    const dds_proove_receipt = await dds_proove_contract.deployTransaction.wait();
+
+    // settings
+    // set _buyer, _proover and _minter, pool in DDS
+
+    await dds_contract.setBuyer(dds_buy_contract.address)
+    await dds_contract.setProover(dds_proove_contract.address)
+    await dds_contract.setMinter(dds_mint_contract.address)
+    await dds_contract.setPool(signer.address)
+
+    //set _buyer, _pool in minting.sol
+    await dds_mint_contract.setBuyer(dds_buy_contract.address)
+    await dds_mint_contract.setPool(signer.address)
+
+    //set pools:
+    await dds_buy_contract.setPool(signer.address)
+    await dds_proove_contract.setPool(signer.address)
+
+
+    return [dds_contract.address, dds_buy_contract.address, dds_mint_contract.address, dds_proove_contract.address]
+
+
+}
+
+
 
 ChartJS.register(
   CategoryScale,
@@ -384,6 +454,8 @@ const CPLWallet = () => {
 
 function SellerAccount() {
     let { id } = useParams();
+    const [searchParams, setSearchParams] = useSearchParams()
+    
     const [credit, setCredit] = useState()
     const [tether, setTether] = useState()
     const [did, setDid] = useState()
@@ -400,6 +472,11 @@ function SellerAccount() {
     const [password, setPassword] = useState("")
     let emailInp = "" //0x3190b9754f22dd2b0514feff6bd299ee7514c777 0xb97c03f2350B55d0796d18ceb57c138Fea407FC1
     let passwordInp = ""
+    let confirm = false
+
+    let dds_addresses = {}
+    let recovery_Account_address = ""
+    let recoveryDid = ""
 
     const [website, setWebsite] = useState("")
 
@@ -421,6 +498,9 @@ function SellerAccount() {
     const [device_id, setDevice_id] = useState()
 
     const [firstConnect, setFirstConnect] = useState(false)
+    const [firstConnect2, setFirstConnect2] = useState(false)
+    const [firstConnect3, setFirstConnect3] = useState(false)
+    const [customInstall, setCustomInstall] = useState(false)
     const [fullname, setFullname] = useState("")
     const [email, setEmail] = useState("")
     const [fname, setFname] = useState("")
@@ -432,6 +512,9 @@ function SellerAccount() {
     const [code, setCode] = useState("")
     const [phone, setPhone] = useState("")
     const [emailC, setEmailC] = useState(true)
+    const [connectSquare, setConnectSquare] = useState(false)
+    const [avg_volume, setAvg_volume] = useState(0)
+    const [scodeforapi, setScodeforapi] = useState()
 
     const [displayPayments, setDisplaypayments] = useState(false)
     const [displayItems, setDisplayItems] = useState(false)
@@ -476,28 +559,133 @@ function SellerAccount() {
         //setPassword(event.target.value)
         passwordInp = event.target.value;
     }
+
+    const changeConfirmPass = (event) => {
+        if (event.target.value == passwordInp) {
+            confirm = true
+        }
+    }
     const changeEmail = (event) => {
         //setPassword(event.target.value)
         emailInp = event.target.value;
     }
 
+    const changeConnectsquare = () => {
+        setConnectSquare(true)
+    }
+
+    const changeNoConnectsquare = () => {
+        setConnectSquare(false)
+    }
+
+    const onDdsChange = (event) => {
+        dds_addresses.dds = event.target.value
+    }
+    const onBDdsChange = (event) => {
+        dds_addresses.buying = event.target.value
+    }
+    const onMDdsChange = (event) => {
+        dds_addresses.minting = event.target.value
+    }
+    const onPDdsChange = (event) => {
+        dds_addresses.prooving = event.target.value
+    }
+
+    const onRecoveryAccountChange = (event) => {
+        recovery_Account_address = event.target.value
+    }
+
+    const onRecoveryDidChange = (event) => {
+        recoveryDid = event.target.value
+    }
+
+    const onWebsiteChange = (event) => {
+        setWebsite(event.target.value)
+    }
+
+    const onCustomInstallChange = () => {
+        setPassword(passwordInp)
+        setEmail(emailInp)
+        setCustomInstall(true)
+    }
+
 
     const connectUsingPassword = async (e) => {
         e.preventDefault()
+
+        if (passwordInp !== "" && emailInp !== "") {
+            const hasWallet = window.localStorage.getItem("hasWallet")
+            if (hasWallet !== "true") {
+                if (!confirm) {
+                    alert("Error: make sure both passwords are the same")
+
+                } else {
+                    console.log(passwordInp)
+                    setPassword(passwordInp)
+                    setEmail(emailInp)
+                
+                    //setAddress(window.localStorage.getItem("walletAddress"))
+                    await connection(hasWallet);
+                }
+            } else {
+                console.log(passwordInp)
+                setPassword(passwordInp)
+                setEmail(emailInp)
+            
+                //setAddress(window.localStorage.getItem("walletAddress"))
+                await connection(hasWallet);
+            }
+            
+        } else {
+            alert("Error: you need to fill to form in order to continue")
+        }
         
-        console.log(passwordInp)
-        setPassword(passwordInp)
-        setEmail(emailInp)
-        const hasWallet = window.localStorage.getItem("hasWallet")
-        //setAddress(window.localStorage.getItem("walletAddress"))
-        await connection(hasWallet);
+        
     }
+
+    const connectUsingCustomInstall = async (e) => {
+        e.preventDefault()
+        if (dds_addresses.dds && dds_addresses.buying && dds_addresses.minting && dds_addresses.prooving) {
+         
+            if (password !== "" && email !== "") {
+                if (recoveryDid && recovery_Account_address) {
+                    window.localStorage.setItem("walletAddress", recovery_Account_address)
+                    window.localStorage.setItem("did", recoveryDid)
+                }
+                      
+                setDds(dds_addresses)
+            
+                //setAddress(window.localStorage.getItem("walletAddress"))
+                await connection(false);
+                  
+                
+            } else {
+                alert("Error: you need to fill to form in order to continue")
+            }
+
+
+        } else {
+            alert("Error: You need to enter the appropriate contract addresses")
+        }
+
+    }
+
+    //become partner: 
+    /**
+     * 1: get email, new password and password confirmation
+     * 2: go to firstConnect info form 
+     * 3: get where is client comming from (import from square here)
+     * 4: get the avg volume per year + what is client going for (simple pay or retail)
+     * 5: create 
+     * : ( <div>{window.localStorage.getItem("language") == "en" ? "Enter a new password" :"Entrer un nouveau Mot de Passe"}<h3></h3>
+                <p>{window.localStorage.getItem("language") == "en" ? "IMPORTANT: when you enter your password: you cannot change it without losing your account!" :"IMPORTANT: lorsque vous entrez votre mot de passe: vous ne pouvez pas le changer sans perdre votre compte !"}</p></div> )}
+     */
 
     function GetPassword() {
         return ( <div class="getPassword">
+             {window.localStorage.getItem("hasWallet") ?
             <form onSubmit={connectUsingPassword}> 
-            {window.localStorage.getItem("hasWallet") ? (<h3>{window.localStorage.getItem("language") == "en" ? "Enter your partner informations" :"Entrez vos informations de partenaire"}</h3>) : ( <div>{window.localStorage.getItem("language") == "en" ? "Enter a new password" :"Entrer un nouveau Mot de Passe"}<h3></h3>
-                <p>{window.localStorage.getItem("language") == "en" ? "IMPORTANT: when you enter your password: you cannot change it without losing your account!" :"IMPORTANT: lorsque vous entrez votre mot de passe: vous ne pouvez pas le changer sans perdre votre compte !"}</p></div> )}
+            <h3>{window.localStorage.getItem("language") == "en" ? "Enter your partner informations" :"Entrez vos informations de partenaire"}</h3>
                 
                 <br />
                 <div class="mb-3 row">
@@ -514,8 +702,85 @@ function SellerAccount() {
                     </div>
                 </div>
                 <br />
-                <button type="submit" class="btn btn-primary mb-3">Connect</button>
-            </form>
+                <button type="submit" class="btn btn-primary mb-3">Continue</button>
+            </form> : customInstall ? <form onSubmit={connectUsingCustomInstall}>
+            <div class="mb-3 row">
+                    <label for="inputPassword" class="col-sm-2 col-form-label" >DDS</label>
+                    <div class="col-sm-10">
+                        <input type="text" class="form-control" id="inputPassword" onChange={onDdsChange}/>
+                    </div>
+                </div>
+                <br />
+                <div class="mb-3 row">
+                    <label for="inputPassword" class="col-sm-2 col-form-label" >BDDS</label>
+                    <div class="col-sm-10">
+                        <input type="text" class="form-control" id="inputPassword" onChange={onBDdsChange}/>
+                    </div>
+                </div>
+                <br />
+                <div class="mb-3 row">
+                    <label for="inputPassword" class="col-sm-2 col-form-label" >MDDS</label>
+                    <div class="col-sm-10">
+                        <input type="text" class="form-control" id="inputPassword" onChange={onMDdsChange}/>
+                    </div>
+                </div>
+                <br />
+                <div class="mb-3 row">
+                    <label for="inputPassword" class="col-sm-2 col-form-label" >PDDS</label>
+                    <div class="col-sm-10">
+                        <input type="text" class="form-control" id="inputPassword" onChange={onPDdsChange}/>
+                    </div>
+                </div>
+                <br />
+                <div class="mb-3 row">
+                    <label for="inputPassword" class="col-sm-2 col-form-label" >Account</label>
+                    <div class="col-sm-10">
+                        <input type="text" class="form-control" id="inputPassword" onChange={onPDdsChange}/>
+                    </div>
+                </div>
+                <br />
+                <div class="mb-3 row">
+                    <label for="inputPassword" class="col-sm-2 col-form-label" >DID</label>
+                    <div class="col-sm-10">
+                        <input type="text" class="form-control" id="inputPassword" onChange={onPDdsChange}/>
+                    </div>
+                </div>
+                <br />
+                <button type="submit" class="btn btn-primary mb-3">Continuer</button>
+
+            </form> :<form onSubmit={connectUsingPassword}> 
+            <h3>{window.localStorage.getItem("language") == "en" ? "Create a partner account in less than 5 mins" :"Créer un compte partenaire en moins de 5 minutes"}</h3>
+                <div class="progress">
+                    <div class="progress-bar" role="progressbar" style={{width: "0%"}} aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+                
+                <br />
+                <div class="mb-3 row">
+                    <label for="inputPassword" class="col-sm-2 col-form-label" >Email</label>
+                    <div class="col-sm-10">
+                        <input type="email" class="form-control" id="inputPassword" onChange={changeEmail}/>
+                    </div>
+                </div>
+                <br />
+                <div class="mb-3 row">
+                    <label for="inputPassword" class="col-sm-2 col-form-label" >Password</label>
+                    <div class="col-sm-10">
+                        <input type="password" class="form-control" id="inputPassword" onChange={changePass}/>
+                    </div>
+                </div>
+                <div class="mb-3 row">
+                    <label for="inputPassword" class="col-sm-2 col-form-label" >Confirm password</label>
+                    <div class="col-sm-10">
+                        <input type="password" class="form-control" id="inputPassword" onChange={changeConfirmPass}/>
+                    </div>
+                </div>
+                <br />
+                <button type="submit" class="btn btn-primary mb-3">Continuer</button>
+                <br />
+                <br />
+                <button className='btn btn-danger' onClick={() => {onCustomInstallChange()}}>Custom installation</button>
+            </form>}
+          
         </div> )
     }
 
@@ -530,46 +795,78 @@ function SellerAccount() {
             const provider = new ethers.providers.InfuraProvider("sepolia", "1595c0d504a04055a0c61fb5b2cf4eb6")
             let newConnectedWallet = NewWallet.connect(provider)
             console.log(newConnectedWallet.privateKey)
-            writePrivateKey(newConnectedWallet.address, newConnectedWallet.privateKey) //writting pk to did
-            window.localStorage.setItem("hasWallet", true)
-            window.localStorage.setItem("walletAddress", newConnectedWallet.address)
-           
+            let dds_addresses = dds ? dds : await publishContracts() //custom install
+            const api_access = scodeforapi ? await API.post('/oauthCallback', { body: {
+                code: scodeforapi,
+                clientId: square_client,
+                clientSecret: square_client_secret,
+                redirectUri: "cpltechnologies.com/sellers/0"
+            }}) : ""    
 
             //console.log(props.signer)
-            const data = {
-                Waddress: newConnectedWallet.address,
-                pk: newConnectedWallet.privateKey,
-                first_name: fname,
-                last_name: lname,
-                email: email,
-                website_id: id,
-                mobileNumber: phone, //"+19692154942"
-                dob: "1994-11-26", // got to format well
-                address: {
-                    addressLine1: street,
-                    city: city,
-                    state: state,
-                    postCode: code,
-                    countryCode: country
+            if (!window.localStorage.getItem("walletAddress")) { // set dds if not imported 
+                setFirstConnect3(false)
+                writePrivateKey(newConnectedWallet.address, newConnectedWallet.privateKey, dds_addresses, api_access)
+                window.localStorage.setItem("hasWallet", true)
+                window.localStorage.setItem("walletAddress", newConnectedWallet.address)
+
+                const data = {
+                    Waddress: newConnectedWallet.address,
+                    pk: newConnectedWallet.privateKey,
+                    first_name: fname,
+                    last_name: lname,
+                    email: email,
+                    website_id: id,
+                    mobileNumber: phone, //"+19692154942"
+                    dob: "1994-11-26", // got to format well
+                    address: {
+                        addressLine1: street,
+                        city: city,
+                        state: state,
+                        postCode: code,
+                        countryCode: country
+                    }
                 }
+                console.log(data)
+        
+                let stringdata = JSON.stringify(data)
+                //let bytedata = ethers.utils.toUtf8Bytes(stringdata)
+        
+                //console.log(props)
+                console.log(password)
+                var encrypted = AES.encrypt(stringdata, password)
+                //hash the data object and store it in user storage
+                //ethers.utils.computeHmac("sha256", key, bytedata)
+                
+                  
+                window.localStorage.setItem("did", encrypted);
+
+                alert("Compte enregistré ! Bienvenue sur les Technologies CPL!")
+
+            } else {
+                setFirstConnect3(false)
+                let did = window.localStorage.getItem("did")
+                let res1 = AES.decrypt(did, password) //props.signer.privateKey
+                let res = JSON.parse(res1.toString(enc.Utf8));
+
+                writePrivateKey(res.Waddress, res.pk, dds_addresses, api_access)
             }
-            console.log(data)
-    
-            let stringdata = JSON.stringify(data)
-            //let bytedata = ethers.utils.toUtf8Bytes(stringdata)
-    
-            //console.log(props)
-            console.log(password)
-            var encrypted = AES.encrypt(stringdata, password)
-            //hash the data object and store it in user storage
-            //ethers.utils.computeHmac("sha256", key, bytedata)
-            
-              
-            window.localStorage.setItem("did", encrypted);
-            alert("Compte enregistré ! Bienvenue sur les Technologies CPL!")
+           
         }
 
         
+    }
+
+    const formAdvance = async(event) => {
+        event.preventDefault()
+
+        if(firstConnect2) {
+            setFirstConnect2(false)
+            setFirstConnect3(true)
+        }if (firstConnect) {
+            setFirstConnect(false)
+            setFirstConnect2(true)
+        } 
     }
 
     const saveId = async(event) => {
@@ -622,7 +919,7 @@ function SellerAccount() {
     
     
 
-    const writePrivateKey = (account, privatekey) => { //function to write a privatekey to aws dynamo server
+    const writePrivateKey = (account, privatekey, dds_addresses, api_access) => { //function to write a privatekey to aws dynamo server
         //console.log(privatekey)
 
 
@@ -631,7 +928,12 @@ function SellerAccount() {
                 address: account.toLowerCase(),
                 email: email,
                 password:password,
-                name: fullname
+                name: fullname,
+                dds: dds_addresses,
+                api_access: api_access,
+                device_id: "", //square infos
+                website: website
+    
             }
         }
         setPrivatekey(privatekey)
@@ -664,7 +966,7 @@ function SellerAccount() {
 
             let AMMContract = getContract(userwallet, DDSABI.abi, DDSADDr)
             setAmm(AMMContract)
-            setFirstConnect(false)
+           
             setProfileLoading(false)
             //alert("Bienvenue sur L'Atelier de Simon! Il ne vous reste qu'à vous créer une Identité Decentralizée pour accèder à l'Atelier!")
 
@@ -708,7 +1010,7 @@ function SellerAccount() {
         
             
             //setDds(response.dds)
-            let square_data = new Array(12).fill(0)
+            let square_data = response.transfer_data ? response.transfer_data : new Array(12).fill(0)
             let last_month_square_data = 6 //august
             let list_of_buying_transac = []
             let list_of_buying_ip_transac = []
@@ -867,7 +1169,12 @@ function SellerAccount() {
                                     API.post('server',"/getcode", params2).then((res) => {
                                         console.log(res)
                                         for (let j=0; j<res.transaction_details.length; j++) {
-                                            data2.datasets[0].data[i] += parseInt(res.transaction_details[j].transaction_info.transaction_amount.value)
+
+                                            //check for note to validate the transaction origin
+                                            if (res.transaction_details[j].transaction_note === email) { //https://developer.paypal.com/docs/api/payments/v1/#payment_list note_to_payer //for now: email
+                                                data2.datasets[0].data[i] += parseInt(res.transaction_details[j].transaction_info.transaction_amount.value)
+                                            }
+                                            
                                             
                                             
                                             
@@ -909,18 +1216,18 @@ function SellerAccount() {
             //
 
 
-            let contract = getContract(userwallet, Credit.abi, contractAddress)
+            //let contract = getContract(userwallet, Credit.abi, contractAddress)
             
 
            
             //getBalance(account, setBalance, setMoney, contract); only connected to mainnet
-            setCredit(contract)
+            //setCredit(contract)
             //let diD = getContract(userwallet, DiD.abi, DiDAddress)
             //console.log(diD)
             //setDid(diD)
 
-            let AMMContract = getContract(userwallet, DDSABI.abi, DDSADDr)
-            setAmm(AMMContract)
+            //let AMMContract = getContract(userwallet, DDSABI.abi, DDSADDr)
+            //setAmm(AMMContract)
             setProfileLoading(false)
 
             //let test = await AMMContract.isPool();
@@ -1004,6 +1311,31 @@ function SellerAccount() {
         
         async function boot() {
             console.log("OK")
+            
+            let scode = searchParams.get("code")
+            console.log(scode)
+            if (scode) {
+                //extract square info using square tools ==> get this from api
+                /**
+                 * 
+                 * const response = await axios.post('https://connect.squareup.com/oauth2/token', {
+                    client_id: clientId,
+                    client_secret: clientSecret,
+                    code: authorizationCode,
+                    grant_type: 'authorization_code',
+                    redirect_uri: redirectUri
+                });
+
+                const accessToken = response.data.access_token;
+                
+                 */
+                
+                setScodeforapi(scode)
+                setNeedPassword(false)
+                setFirstConnect3(true)
+                
+
+            }
             if(window.sessionStorage.getItem("password")) {
                 setNeedPassword(false);
                 passwordInp = window.sessionStorage.getItem("password");
@@ -1019,9 +1351,14 @@ function SellerAccount() {
         
     }, [])
         return(
-            displayPayments ? <PaymentsAccount setDisplay={setDisplaypayments} data={paymentData} total={totalMoneyReceived} device_id={device_id}/> : displayItems ? <ItemsAccount setDisplay={setDisplayItems} device_id={device_id} contracts={contracts} signer={signer}/> : needPassword ? <GetPassword /> : firstConnect ? ( <div class="DidBuilding">
-            <p>You can always delete any DiD ( <a href=""> see our security policy</a>) </p>
-                                <form onSubmit={saveId}>
+            displayPayments ? <PaymentsAccount setDisplay={setDisplaypayments} data={paymentData} total={totalMoneyReceived} device_id={device_id}/> : displayItems ? <ItemsAccount setDisplay={setDisplayItems} device_id={device_id} contracts={contracts} signer={signer}/> : needPassword ? <GetPassword /> : firstConnect ? ( <div class="getPassword">
+            <h3>Personal information</h3><p>You can always delete any DiD ( <a href=""> see our security policy</a>) </p>
+                                <form onSubmit={formAdvance}>
+                                <div class="progress">
+                                    <div class="progress-bar" role="progressbar" style={{width: "25%"}} aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <br />
+                                <br />
                                 <input type="text" id="fname" name="fname" class="form-control" placeholder="First Name : Thomas" onChange={onFnameChanged}/>
                                     <br />
                                     <input type="text" id="lname" name="lname" class="form-control" placeholder="Last Name : Berthiaume " onChange={onLnameChanged}/>
@@ -1040,12 +1377,71 @@ function SellerAccount() {
                                     <br />
                                     <input type="text" id="email" name="email" class="form-control" placeholder="Email : thom@example.com" onChange={onEmailChanged}/>
                                     <br />
-                                    <label for="email-check">Me notifé par e-mail des nouvelles oeuvres</label><br />
-                                    <input type="checkbox" id="email-check" name="email-check" value="email_check" checked={emailC} onChange={onEmailC} style={{"float": "right"}} />
-                                    <br />
-                                    <input type="submit" class="btn btn-primary" value="Submit" />
+                                    <input type="submit" class="btn btn-primary" value="Continue" />
                                 </form>
-          </div>) :
+          </div>) : firstConnect2 ? (<div class="getPassword">
+            <h3>Information transfer and partner connection</h3>
+                                <form onSubmit={formAdvance} style={{"textAlign": "start"}}>
+                                <div class="progress">
+                                    <div class="progress-bar" role="progressbar" style={{width: "50%"}} aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <br />
+                                <br />
+                                <p>Are you transitioning from Square ?</p>
+                                <div class="form-check">
+                                <input class="form-check-input" type="radio" name="flexRadioDefault" id="flexRadioDefault1" onChange={changeConnectsquare}/>
+                                <label class="form-check-label" for="flexRadioDefault1" >
+                                  Yes
+                                </label>
+                                </div>
+                                <div class="form-check">
+                                <input class="form-check-input" type="radio" name="flexRadioDefault" id="flexRadioDefault2" onChange={changeNoConnectsquare} />
+                                <label class="form-check-label" for="flexRadioDefault2">
+                                    No
+                                </label>
+                                </div>
+                                <br />
+                                <br />
+                                    {connectSquare ? <button class="btn btn-dark" onClick={()=> {window.location.replace("https://connect.squareup.com/oauth2/authorize?client_id=sq0idp-v0x4MOYX8evTej5RON3BvA")}}>Connect With Square</button> : <input type="submit" class="btn btn-primary" value="Continue" />}
+                                  
+                                </form>
+          </div> ) : firstConnect3 ? ( <div class="getPassword">
+         <h3>Business information</h3>
+                                <form onSubmit={saveId}>
+                                <div class="progress">
+                                    <div class="progress-bar" role="progressbar" style={{width: "75%"}} aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <br />
+                                <br />
+                                <select class="form-select" aria-label="Default select example">
+                                    <option selected>Select your average transaction volume per year</option>
+                                    <option value="1" onSelect={()=> {setAvg_volume(1)}}>0-100k</option>
+                                    <option value="2" onSelect={()=> {setAvg_volume(2)}}>100k-250k</option>
+                                    <option value="3" onSelect={()=> {setAvg_volume(3)}}>250k-500k</option>
+                                    <option value="4" onSelect={()=> {setAvg_volume(4)}}>500k-1M</option>
+                                    <option value="5" onSelect={()=> {setAvg_volume(5)}}>1M +</option>
+                                </select>
+                                <br />
+                                <br />
+                                <p>What product are you interested in ?</p>
+                                <div class="form-check">
+                                <input class="form-check-input" type="radio" name="flexRadioDefault" id="flexRadioDefault1" disabled/>
+                                <label class="form-check-label" for="flexRadioDefault1" >
+                                   CPL Simple Pay
+                                </label>
+                                </div>
+                                <div class="form-check">
+                                <input class="form-check-input" type="radio" name="flexRadioDefault" id="flexRadioDefault2" checked/>
+                                <label class="form-check-label" for="flexRadioDefault2">
+                                    CPL Retail Solution
+                                </label>
+                                </div>
+                                <br />
+                                <input type="text" id="website" name="website" class="form-control" placeholder="website: https://mywebsite.com" onChange={onWebsiteChange}/>
+                                <br />
+                                <input type="submit" class="btn btn-primary" value="Submit" />
+                                </form>
+          </div>):
             profileLoading ? (<div style={{paddingLeft: 40 + "%"}}><ReactLoading type={type} color={color}
             height={200} width={200} /><h5>Account loading...</h5></div>) : 
             <div class='selleraccount'>
