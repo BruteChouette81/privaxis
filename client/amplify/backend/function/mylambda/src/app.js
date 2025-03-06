@@ -21,6 +21,73 @@ const Moralis = require("moralis").default; // new moralis v2
 
 const AWS = require('aws-sdk');
 const nfetch = require('node-fetch')
+const fetch = require('node-fetch')
+const jwt = require('jsonwebtoken');
+const AES = require('crypto-js/aes')
+const enc = require('crypto-js/enc-utf8.js')
+const crypto = require("crypto");
+
+const forge = require('node-forge');
+
+const {ethers} = require('ethers')
+
+const { shopify_app_secret } = require('./apikeyStorer.js')
+
+const secretsManager = new AWS.SecretsManager();
+
+async function getSecretKey() {
+    try {
+        const data = await secretsManager.getSecretValue({ SecretId: 'privatekey2' }).promise();
+        if ('SecretString' in data) {
+            const secret = JSON.parse(data.SecretString);
+            return secret.privatekey;
+        }
+        throw new Error('Secret not found in SecretString');
+    } catch (error) {
+        console.error('Error retrieving secret:', error);
+        throw error;
+    }
+}
+
+async function getApikey() {
+  try {
+      const data = await secretsManager.getSecretValue({ SecretId: 'apikey' }).promise();
+      if ('SecretString' in data) {
+          const secret = JSON.parse(data.SecretString);
+          return secret.apikey;
+      }
+      throw new Error('Secret not found in SecretString');
+  } catch (error) {
+      console.error('Error retrieving secret:', error);
+      throw error;
+  }
+}
+
+async function verifyShopifyWebhook(req) {
+  const hmac = req.headers['x-shopify-hmac-sha256'];
+  const shopKey =  await getApikey()
+  const generatedHmac = crypto
+      .createHmac('sha256', shopKey)
+      .update(JSON.stringify(req.body))
+      .digest('base64');
+
+  return hmac === generatedHmac;
+}
+
+function convertBase64ToPEM(base64Key) {
+  return `-----BEGIN PUBLIC KEY-----\n${base64Key.match(/.{1,64}/g).join("\n")}\n-----END PUBLIC KEY-----`;
+}
+
+function encryptWithPublicKey(publicKey, secret) {
+    const publicKeyObj = forge.pki.publicKeyFromPem(publicKey);
+
+    // Encrypt message
+    const encrypted = publicKeyObj.encrypt(secret, "RSA-OAEP", {
+        md: forge.md.sha256.create(),
+    });
+    return forge.util.encode64(encrypted)
+}
+
 //const schedule = require('node-schedule');
 
 /* Moralis information to start server (hide at release) */
@@ -405,10 +472,70 @@ app.post('/connection', (req, res) => {
     
 });
 
-app.post("/partnerConnection", (req, res) => {
+const provider = new ethers.InfuraProvider("sepolia")
+
+app.post("/partnerConnection", async (req, res) => {
   const data = req.body;
   //var exist = 0;
-  console.log(data.email)
+  //console.log(data.email)
+
+  if (data.seamless) {
+    const token = data.token.split(" ")[1];
+
+    try {
+      let apikey = await getApikey()
+      
+        // Decode the Shopify JWT
+        const decoded = jwt.verify(token, apikey, { algorithms: ["HS256"] });
+        if ( decoded.dest.split(".")[1] == "myshopify" ) {
+          let params = {
+            TableName: "partnerlogin",
+            Key: {
+              email: data.email
+            }
+          }
+          dynamodb.get(params, async (error, result) => {
+            if (error) {
+              console.log(error)
+              //res.json({ statusCode: 500, error: error.message })
+            } else {
+              
+              let secretKey = await getSecretKey()
+              let poolWallet = new ethers.Wallet(secretKey, provider)
+              const poolPublicKey =  new ethers.SigningKey(poolWallet.privateKey)
+              
+              let sharedSecret = poolPublicKey.computeSharedSecret(result.Item.publickey)
+              sharedSecret = sharedSecret.toString().replace("0x04", "")
+              sharedSecret = "0x" + sharedSecret.slice(0, -64)
+              let finalmessage = AES.decrypt(result.Item.password.toString(), sharedSecret)
+
+              console.log(enc.stringify(finalmessage))
+
+              const encryptedFinalMessage = encryptWithPublicKey(data.publicKey, enc.stringify(finalmessage))
+
+              res.json({ password: encryptedFinalMessage, bg: result.Item.bg, img: result.Item.img, name: result.Item.name, address: result.Item.address, publickey: result.Item.publickey, website: result.Item.website, dds: result.Item.dds, device_id: result.Item.device_id, partner_api_access: result.Item.partner_api_access, tier: result.Item.tier, transfer_data: result.Item.transfer_data})
+              }
+          })
+        } else {
+          res.status(401).json({ error: "Invalid token" });
+        }
+  
+        //const shopDomain = decoded.dest.replace("https://", ""); // Get store URL
+        //const merchantEmail = decoded.email; // Get merchant email from the token
+
+
+        // data.email //got from localstorage when user signed in
+
+        
+        // Generate a session for the user (e.g., set a cookie or return a token)
+        //const sessionToken = jwt.sign({ shop: shopDomain, email: merchantEmail }, "YOUR_SECRET_KEY", { expiresIn: "1h" });
+
+    } catch (error) {
+        console.log(error)
+        res.status(401).json({ error: "Invalid token" });
+    }
+
+  } else {
 
   
   let params = {
@@ -424,9 +551,14 @@ app.post("/partnerConnection", (req, res) => {
       } else {
         if(result.Item) {
           if(result.Item.password==data.password) {
-            res.json({ bg: result.Item.bg, img: result.Item.img, cust_img: result.Item.cust_img, name: result.Item.name, address: result.Item.address, website: result.Item.website, dds: result.Item.dds, device_id: result.Item.device_id, partner_api_access: result.Item.partner_api_access, transfer_data: result.Item.transfer_data})
+            res.json({ bg: result.Item.bg, img: result.Item.img, cust_img: result.Item.cust_img, name: result.Item.name, address: result.Item.address, publickey: result.Item.publickey, website: result.Item.website, dds: result.Item.dds, device_id: result.Item.device_id, partner_api_access: result.Item.partner_api_access, tier: result.Item.tier, transfer_data: result.Item.transfer_data})
           } else {
-            res.send("error, bad password")
+            if (data.shopify) {
+              res.json({ address: result.Item.address, dds: result.Item.dds, publickey: result.Item.publickey})
+            } else {
+              res.send("error, bad password")
+            }
+            
           }
           
         }
@@ -449,7 +581,9 @@ app.post("/partnerConnection", (req, res) => {
               partner_api_access: data.api_access,
               device_id: "",
               transfer_data: [],
-              website: data.website
+              website: data.website,
+              tier: data.tier,
+              publickey: data.publickey
             }
           }
           console.log(create_params)
@@ -468,8 +602,69 @@ app.post("/partnerConnection", (req, res) => {
 
       }
     })
+  }
 })
 
+async function deleteUserByWebsite(website) {
+  try {
+      // Step 1: Retrieve the user by username using the GSI
+      const queryParams = {
+          TableName: "partnerlogin",
+          IndexName: "website-index", 
+          KeyConditionExpression: "#webiste = :websiteValue",
+          ExpressionAttributeNames: {
+              "#website": "website"
+          },
+          ExpressionAttributeValues: {
+              ":usernameValue": website
+          }
+      };
+
+      const queryResult = await dynamodb.query(queryParams).promise();
+
+      if (queryResult.Items.length === 0) {
+          console.log("User not found");
+          return 0;
+      }
+
+      const user = queryResult.Items[0]; // Assuming username is unique
+
+      // Step 2: Delete the user using the primary key (email, id)
+      const deleteParams = {
+          TableName: "partnerlogin",
+          Key: {
+              "email": user.email,
+          }
+      };
+
+      await dynamodb.delete(deleteParams).promise();
+      console.log(`Client ${website} deleted successfully`);
+      return 1
+
+  } catch (error) {
+      console.error("Error deleting user:", error);
+      return 0
+  }
+}
+
+app.post('/webhooksRedact', async (req, res) => {
+  if (!verifyShopifyWebhook(req)) {
+      return res.status(401).send('Unauthorized');
+  }
+
+  if (req.body.customer) {
+    res.status(200).send('No customner data!');
+  }
+
+  const { shop_id, shop_domain } = req.body;
+  console.log(`Deleting data for shop: ${shop_id}`);
+  const response = await deleteUserByWebsite(shop_domain)
+  if (response == 1) {
+    res.status(200).send('Data deleted');
+  } else {
+    res.status(404).send('Data not found');
+  }
+});
 
 app.put("/uploadFile", (req, res) => {
   
@@ -787,6 +982,57 @@ app.put("/uploadFile", (req, res) => {
     payparams.UpdateExpression = 'SET '
     payparams.ExpressionAttributeValues[':transferData'] = req.body.transfer_data;
     payparams.UpdateExpression += '#td = :transferData'
+
+    dynamodb.update(transferparams, (error, result) => {
+        if (error) {
+          console.log(error.message);
+          res.json({error: error.message, params: transferparams})
+        }
+        else {
+          res.send("done")
+        }
+    });
+
+  }
+  if (req.body.square_access) {
+    
+    const transferparams = {
+      TableName: "partnerlogin",
+      Key: {
+        email: req.body.email,
+      },
+      ExpressionAttributeNames: { '#paa': 'partner_api_access' },
+      ExpressionAttributeValues: {},
+      ReturnValues: 'UPDATED_NEW',
+    };
+    payparams.UpdateExpression = 'SET '
+    payparams.ExpressionAttributeValues[':partnerApiAccess'] = req.body.square_access;
+    payparams.UpdateExpression += '#paa = :partnerApiAccess'
+
+    dynamodb.update(transferparams, (error, result) => {
+        if (error) {
+          console.log(error.message);
+          res.json({error: error.message, params: transferparams})
+        }
+        else {
+          res.send("done")
+        }
+    });
+
+  } if (req.body.website) {
+    
+    const transferparams = {
+      TableName: "partnerlogin",
+      Key: {
+        email: req.body.email,
+      },
+      ExpressionAttributeNames: { '#wb': 'website' },
+      ExpressionAttributeValues: {},
+      ReturnValues: 'UPDATED_NEW',
+    };
+    payparams.UpdateExpression = 'SET '
+    payparams.ExpressionAttributeValues[':website'] = req.body.website;
+    payparams.UpdateExpression += '#wb = :website'
 
     dynamodb.update(transferparams, (error, result) => {
         if (error) {
@@ -1490,34 +1736,351 @@ app.post("/checkoutUpdate", (req, res) => {
   
 })
 
+app.post('/oauthCallbackShopify', async (req, res) => {
+  const authorizationCode = req.body.code;
+
+  if (req.body.itemCallback) {
+    let params = {
+      TableName: "partnerlogin",
+      Key: {
+        email: req.body.email
+      }
+    }
+    dynamodb.get(params, (error, result) => {
+      if (error) {
+        console.log(error)
+        //res.json({ statusCode: 500, error: error.message })
+      } else {
+        if(result.Item) {
+          console.log(req.body)
+          let lineItems = []
+          if (req.body.variantId.includes(",")) {
+            for (let i=0;i<req.body.variantId.split(",").length;i++) {
+              lineItems.push({ "variantId": req.body.variantId.split(",")[i], "quantity": parseInt(req.body.quantities.split(",")[i]) })
+           }
+          } else {
+            lineItems.push({ "variantId": req.body.variantId, "quantity": parseInt(req.body.quantities) })
+          } //{ "variantId": req.body.variantId, "quantity": 1 } //add "gid://shopify/ProductVariant/ to variant id 
+      fetch(`https://${req.body.store}/admin/api/2024-10/graphql.json`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': `${result.Item.partner_api_access}` //.access_token
+        },
+        body: JSON.stringify({
+    "query": "mutation OrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) { orderCreate(order: $order, options: $options) { userErrors { field message } order { id note lineItems(first:5) { nodes { variant { id } quantity } } } } }",
+        "variables": {
+            "order": {
+                //email: 'customer@example.com',
+                "lineItems": lineItems,
+                "financialStatus": "PAID",
+                "note": req.body.note
+            }
+        }})
+    }).then( async (response) => {
+      //unfullfilled order
+
+      const order = await response.json()
+      res.json({id: order})
+    })
+  }}})
+} else if (req.body.loadOrder) {
+  //load order by id
+  let params = {
+    TableName: "partnerlogin",
+    Key: {
+      email: req.body.email
+    }
+  }
+  dynamodb.get(params, (error, result) => {
+    if (error) {
+      console.log(error)
+      //res.json({ statusCode: 500, error: error.message })
+    } else {
+      if(result.Item) {
+    fetch(`https://${req.body.store}/admin/api/2024-10/graphql.json`, {
+      method: 'POST',
+      headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': `${result.Item.partner_api_access}` //.access_token
+      },
+      body: JSON.stringify({
+   "query": "query { order(id: \""+ "gid://shopify/Order/" + req.body.id + "\") { confirmed } }"
+      })
+  }).then( async (response) => {
+    //unfullfilled order
+
+    const order = await response.json()
+    res.json({confirmed: order.data.order.confirmed})
+  })
+}}})
+
+  } else if (req.body.loadByStore) {
+    //console.log(req.body)
+    let params = {
+      TableName: "partnerlogin",
+      Key: {
+        email: req.body.email
+      }
+    }
+    dynamodb.get(params, (error, result) => {
+      if (error) {
+        console.log(error)
+        //res.json({ statusCode: 500, error: error.message })
+      } else {
+        if(result.Item) {
+      fetch(`https://${req.body.store}/admin/api/2024-10/graphql.json`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': `${result.Item.partner_api_access}` //.access_token
+        },
+        body: JSON.stringify({
+    "query": "query { orders(first: 10, query: \"updated_at:>2024-12-01\") { edges { node { id name note fulfillments { order { displayFulfillmentStatus } } } } } }"})
+  }).then( async (response) => {
+    //unfullfilled order
+    
+    const orders = await response.json()
+    //console.log(orders)
+    res.json({orders: orders.data.orders.edges})
+  })}}})
+
+  } else if (req.body.giftCard) {
+    let params = {
+      TableName: "partnerlogin",
+      Key: {
+        email: req.body.email
+      }
+    }
+    dynamodb.get(params, async (error, result) => {
+      if (error) {
+        console.log(error)
+        //res.json({ statusCode: 500, error: error.message })
+      } else {
+        if(result.Item) {
+
+    const query = {
+      "query": "query { giftCards(first: 10, query: \"status:enabled\") { edges { node { id enabled balance { amount } maskedCode } } } }"
+    }
+  
+      try {
+          const response = await fetch(`https://${req.body.store}/api/2023-10/graphql.json`, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'X-Shopify-Storefront-Access-Token': result.Item.partner_api_access,
+              },
+              body: JSON.stringify(query),
+          });
+  
+          const data = await response.json();
+
+          const giftCafdList = data.data.giftCards.edges
+          let stop = false;
+          //check gift card
+          for (let i =0; i<giftCafdList.length; i++) {
+            if (giftCafdList[i].node.maskedCode.slice(-4) == req.body.id.slice(-4)) {
+              if (giftCafdList[i].node.enabled) {
+                const balance = parseFloat(giftCafdList[i].node.balance.amount);
+                let remainingBalance = req.body.totalAmount - balance;
+                const query2 = {
+                  "query": "mutation giftCardDebit($id: ID!, $debitInput: GiftCardDebitInput!) { giftCardDebit(id: $id, debitInput: $debitInput) { giftCardDebitTransaction { id amount { amount currencyCode } giftCard { id balance { amount currencyCode } } } userErrors { message field code } } }",
+                  "variables": {
+                    "id": giftCafdList[i].node.id,
+                    "debitInput": {
+                      "debitAmount": {
+                        "amount": remainingBalance<0 ? req.body.totalAmount : balance,
+                        "currencyCode": "CAD"
+                      },
+                    
+                    }
+                  }
+                }
+                const response2 = await fetch(`https://${req.body.store}/api/2023-10/graphql.json`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'X-Shopify-Storefront-Access-Token':  result.Item.partner_api_access,
+                  },
+                  body: JSON.stringify(query2),
+                });
+            
+                const data2 = await response2.json();
+
+                if (remainingBalance<0) {
+                  res.json({
+                    message: data2.giftCardDebit.giftCardDebitTransaction.id,
+                    status: 'paid',
+                })
+                } else {
+                  res.json({
+                    message: data2.giftCardDebit.giftCardDebitTransaction.id,
+                    status: 'partially_paid',
+                    remainingBalance: remainingBalance,
+                })
+                }
+                stop=true //break
+              }
+              
+
+            } else {
+              if (i==giftCafdList.length && !stop) { //last iteration and gift card not found
+                res.json({ message: 'Gift card not found or invalid.', status: 'error' })
+              }
+            }
+          }
+      } catch (error) {
+          console.error(error);
+          return { message: 'An error occurred while processing the payment.', status: 'error' };
+      }
+    }}})
+  
+  } else if (req.body.validate){
+    let params = {
+      TableName: "partnerlogin",
+      Key: {
+        email: req.body.email
+      }
+    }
+    dynamodb.get(params, (error, result) => {
+      if (error) {
+        console.log(error)
+        //res.json({ statusCode: 500, error: error.message })
+      } else {
+        if(result.Item) {
+        const query = {"query": "query { appInstallation { activeSubscriptions { name status lineItems { id plan { pricingDetails { ... on AppRecurringPricing { price { amount } } } } } } } }"}
+         
+        fetch(`https://${req.body.store}/admin/api/2024-10/graphql.json`, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'X-Shopify-Access-Token': `${result.Item.partner_api_access}` //.access_token
+          },
+          body: JSON.stringify({query})
+      }).then( async (response) => {
+        //unfullfilled order
+
+        const plan = await response.json()
+        res.json({plan: plan.data.appInstallation.activeSubscriptions}) //list of active subs
+      })
+  }}})
+
+  }
+  else {
+
+  try {
+    fetch(`https://${req.body.shop}/admin/oauth/access_token?client_id=${req.body.clientId}&client_secret=${req.body.clientSecret}&code=${authorizationCode}`, {
+      method: 'POST',
+    }).then( async (response) => {
+      console.log(response)
+
+      const accessToken = await response.json()
+      console.log(accessToken)
+      
+      // Save the access token securely, e.g., in a database
+      console.log('Access Token:', accessToken.access_token);
+
+      res.json({'access_token': accessToken.access_token})
+
+      // get storefront access token
+      /*fetch(`https://${req.body.shop}/admin/api/2024-10/graphql.json`, {
+        method: 'POST',
+        body: JSON.stringify({
+          "query": "mutation StorefrontAccessTokenCreate($input: StorefrontAccessTokenInput!) { storefrontAccessTokenCreate(input: $input) { userErrors { field message } shop { id } storefrontAccessToken { accessScopes { handle } accessToken title } } }",
+           "variables": {
+              "input": {
+                "title": "CPL Access Token"
+              }
+            }
+          }),
+   
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': accessToken.access_token,
+        },
+      
+      }).then( async (response2) => {
+        console.log(response2)
+        const storefrontToken = await response2.json()
+        console.log(storefrontToken)
+        res.json({'access_token': storefrontToken.storefrontAccessTokenCreate.storefrontAccessToken.accessToken})
+      })*/
+  
+      //res.redirect('/success');
+      
+    })
+
+   
+  } catch (error) {
+    console.error('Error exchanging authorization code for access token:', error);
+    res.status(500).send('Something went wrong');
+  }}
+});
+
 app.post('/oauthCallback', async (req, res) => {
   const authorizationCode = req.body.code;
   const headers = {
-    'Square-Version': '2023-07-26',
-    'Authorization': `Bearer EAAAlnDI3enkFLK0vaVLsFnlZAwi5K2aqAqnrMG_d_vBzyGR13Rh04Ik8lNSH9Py`,
+    'Square-Version': '2025-02-20',
+    'Authorization': `Bearer EAAAlnDI3enkFLK0vaVLsFnlZAwi5K2aqAqnrMG_d_vBzyGR13Rh04Ik8lNSH9Py`, //remove
     'Content-Type': 'application/json',
   };
 
   try {
-    const response = await nfetch('https://connect.squareup.com/oauth2/token', {
-      method: "POST",
+    fetch('https://connect.squareup.com/oauth2/token', {
+      method: 'POST',
       headers: headers,
-      body: {
+      body:  JSON.stringify({
         client_id: req.body.clientId,
         client_secret: req.body.clientSecret,
         code: authorizationCode,
         grant_type: 'authorization_code',
-        redirect_uri: req.body.redirectUri
-      }
-    });
+        
+      })
+    }).then( async (response) => {
+      console.log(response)
 
-    const accessToken = response.data.access_token;
-    
-    // Save the access token securely, e.g., in a database
-    console.log('Access Token:', accessToken);
+      const accessToken = await response.json()
+      console.log(accessToken)
+      
+      // Save the access token securely, e.g., in a database
+      console.log('Access Token:', accessToken.access_token);
 
-    //res.redirect('/success');
-    res.json({'access_token': accessToken})
+      //use the sites api
+     
+      fetch('https://connect.squareup.com/v2/sites', {
+        method: 'GET',
+        headers: {
+          'Square-Version': '2025-02-20',
+          'Authorization': `Bearer ${accessToken.access_token}`, //access token ?
+          'Content-Type': 'application/json',
+        }})
+      }).then( async (response) => {
+        const content = "<button onClick={()=>{window.location.replace('https://privaxis.ca')}}>Buy<button>"
+
+        fetch(`https://connect.squareup.com/v2/sites/${response.sites[0].id}/snippet`, {
+          method: 'POST',
+          headers: {
+            'Square-Version': '2025-02-20',
+            'Authorization': `Bearer ${accessToken.access_token}`, //access token ?
+            'Content-Type': 'application/json',
+          },
+          body:  JSON.stringify({
+           snippet: {
+              content: content,
+            }
+            
+          })
+        }).then( async (response) => {
+          res.json({'access_token': accessToken.access_token})
+      })
+
+      //inject the snippet to square site
+  
+      //res.redirect('/success');
+      
+    })
+
+   
   } catch (error) {
     console.error('Error exchanging authorization code for access token:', error);
     res.status(500).send('Something went wrong');
@@ -1592,11 +2155,237 @@ app.post('/squareTools', async (req, res) => {
       return { dataLastYear, moneyLastYear };
   }
 
+  async function fetchGiftCards(key) {
+    const headers = {
+      'Square-Version': '2023-07-26',
+      'Authorization': `Bearer ${key}`,
+      'Content-Type': 'application/json',
+  };
+    let giftCards = [];
+    let cursor = null;
+
+    while (true) {
+        try {
+            const giftCardsUrl = `${baseUrl}/gift-cards?cursor=${cursor}`;
+            const response = await nfetch(giftCardsUrl, { headers: headers });
+            const responseData = response.data;
+
+            giftCards = [...giftCards, ...responseData.gift_cards];
+
+            cursor = responseData.cursor;
+            if (!cursor) break;
+        } catch (error) {
+            console.error("Error fetching gift cards:", error);
+            break;
+        }
+    }
+
+    return giftCards;
+}
+
+async function createGiftCard(type, amount, gan) {
+  let key =''
+  const headers = {
+    'Square-Version': '2023-07-26',
+    'Authorization': `Bearer ${key}`, //cpl app key
+    'Content-Type': 'application/json',
+};
+    const url = `${baseUrl}/gift-cards`;
+    const data = {
+        idempotency_key: gan,
+        type: type,
+        balance_money: {
+            amount: amount,
+            currency: 'CAD' // Replace with the appropriate currency if needed
+        },
+        gan: gan
+    };
+
+    try {
+        const response = await nfetch(url, data, { headers: headers });
+        return response.data;
+    } catch (error) {
+        console.error("Error creating gift card:", error.response ? error.response.data : error.message);
+        throw error;
+    }
+}
+async function fetchItems(key) {
+  const headers = {
+    'Square-Version': '2023-07-26',
+    'Authorization': `Bearer ${key}`,
+    'Content-Type': 'application/json',
+};
+  const itemsUrl = `${baseUrl}/catalog/list`;
+  const imagesUrl = `${baseUrl}/catalog/list?types=image`;
+  let items = [];
+  let images = [];
+  let cursor = null;
+
+  while (true) {
+      try {
+          const params = cursor ? { cursor: cursor } : {};
+          const response1 = await nfetch(itemsUrl, { headers: headers, params: params });
+          const response2 = await nfetch(imagesUrl, { headers: headers, params: params });
+
+          items = [...items, ...response1.data.objects];
+          images = [...images, ...response2.data.objects];
+
+          cursor = response1.data.cursor;
+          if (!cursor) break;
+      } catch (error) {
+          console.error("Error fetching items:", error);
+          break;
+      }
+  }
+  return { items, images };
+}
+
+async function listNewImage(file, name) {
+  const url = "https://api.pinata.cloud/pinning/pinFileToIPFS";
+  const form = new FormData();
+  
+  // If the file is a file path
+  form.append('file', file); //fs.createReadStream(filePath)
+  let key =''
+  
+  // Alternatively, if `file` is a buffer or a file object directly, you can do:
+  // form.append('file', file);
+
+  const headers = {
+      ...form.getHeaders(),
+      "Authorization": key, // Replace `key` with your actual authorization key
+  };
+
+  try {
+      const response = await nfetch(url, { headers: headers, body: form });
+      return response.data;
+  } catch (error) {
+      console.error("Error uploading file to IPFS:", error);
+      throw error;
+  }
+}
+
+async function loadItems(key, address) {
+  console.log("DEBUG: Fetching Items and Images");
+  const headers = {
+    'Square-Version': '2023-07-26',
+    'Authorization': `Bearer ${key}`,
+    'Content-Type': 'application/json',
+};
+  const { items, images } = await fetchItems(); // Assuming `fetchItems` is an async function in Node.js
+
+  let names = [];
+  let descriptions = [];
+  let categories = [];
+  let categoryIndex = {};
+  let prices = [];
+  let scores = [];
+  let responses = [];
+
+  console.log("DEBUG: Processing Categories");
+  items.forEach(item => {
+      const categoryData = item.category_data;
+      if (categoryData) {
+          if (!categoryIndex[categoryData.name]) {
+              categoryIndex[item.id] = categoryData.name;
+          }
+      }
+  });
+
+  console.log("DEBUG: Processing Items");
+  for (const item of items) {
+      const itemData = item.item_data || {};
+      if (itemData.name) {
+          names.push(itemData.name);
+          try {
+              const response = await nfetch(`https://connect.squareup.com/v2/inventory/${itemData.variations[0].id}`, { headers: headers });
+              const res = response.data;
+              scores.push(parseInt(res.counts[0].quantity, 10));
+          } catch (error) {
+              console.error("Error fetching inventory:", error);
+          }
+      }
+      if (itemData.description) {
+          descriptions.push(itemData.description);
+      }
+      if (itemData.category_id) {
+          categories.push(categoryIndex[itemData.category_id]);
+      }
+      if (itemData.variations) {
+          prices.push(itemData.variations[0].item_variation_data.price_money.amount / 100);
+      }
+  }
+
+  let last_id = 0
+
+  console.log("DEBUG: Processing Images");
+  for (const image of images) {
+      const imageData = image.image_data || {};
+      if (imageData.url) {
+          try {
+              const response = await nfetch(imageData.url, { responseType: 'arraybuffer' });
+              
+              const ipfsHash = await listNewImage(response.data, '');
+
+              const price = prices[images.indexOf(image)];
+              const fee = parseFloat((price * 0.029 + 4.6).toFixed(2));
+
+              if (!last_id) {
+                //pull the last id
+              }
+
+             /* const mintUrl = 'https://f5auzuxklj.execute-api.ca-central-1.amazonaws.com/dev/oracleMint';
+              const body1 = {
+                  address: address,
+                  uri: `https://ipfs.io/ipfs/${ipfsHash.IpfsHash}`,
+                  MaxPrice: parseFloat((price - fee).toFixed(2)),
+                  numDays: 10,
+                  mintingAddress: "0x666f393A06285c3Ec10895D4092d9Dc86aeFD45b",
+                  ddsAddress: "0xa244B3e1e6Bd2ccf1D226F3E269D0Af88Ef86CEE",
+              };
+
+              const responseMint = await nfetch(mintUrl, {body:body1});
+              const mintData = responseMint.data;*/
+
+              const cloudUrl = 'https://f5auzuxklj.execute-api.ca-central-1.amazonaws.com/dev/listItem';
+              const body2 = {
+                  address: address,
+                  itemid: parseInt(mintData.hex, 16),
+                  name: names[images.indexOf(image)],
+                  score: scores[images.indexOf(image)],
+                  tag: categories[images.indexOf(image)],
+                  price: parseInt((price - fee).toFixed(2) * 100000),
+                  description: descriptions[images.indexOf(image)],
+                  image: `https://ipfs.io/ipfs/${ipfsHash.IpfsHash}`,
+              };
+
+              const responseCloud = await nfetch(cloudUrl, {body:body2});
+              responses.push(responseCloud.data);
+              last_id+=1
+          } catch (error) {
+              console.error("Error processing image or minting:", error);
+          }
+      }
+  }
+
+  console.log("DEBUG logs: ", responses);
+  console.log("DEBUG: Finished (code 0)");
+}
+
   if (req.body.type === "sales") {
     let salesData = await loadSalesData()
     console.log(salesData)
     res.send("success")
 
+  } else if (req.body.type === "giftCards") {
+    let giftCards = await fetchGiftCards(req.body.key)
+    //upload them to our square app (one day delete them and replace with our decentralized gift cards)
+    for (let i=0;i<giftCards.length; i++) {
+      let newGiftCard = createGiftCard(giftCards[i].type, giftCards[i].balance_money.amount, giftCards[i].gan)
+    }
+    res.send("success")
+  } else if (req.body.type === "items") {
+   await loadItems(req.body.key, req.body.address)
   }
 
   //all tested square tools
@@ -1682,6 +2471,245 @@ app.post("/get-website", async(req, res) => {
  
     
   })
+
+  function calculateAmountAutomaticTransfer(time, time_set, avg_amount_by_day, min_amount, number_of_iteration, participation_token, competitor_generates, first_participation, max_iteration, res) {  //834
+    //params explained:
+    //time: amount of time between withdraws
+    //time_set: days, weeks, months
+    //avg_amount_by_day: average amount put in the FRS by day
+    //min_amount: min amount for transac to be full
+    //number_of_iteration: the number of payment
+    //participation_token: based on how much their participation generated, an amount of token is redistribuded to augment their generating (regive half to seller)
+    
+
+    //constants
+    const avg_transac_fee = 0.0169
+    const partner_fee = 0.006
+    const avg_lend_rate = 0.07 //pull from aave
+    const cpl_flat_fee = 0.01 + avg_transac_fee // the fee that we are always keeping
+
+    //const competitor_fee = 0.0265
+
+    if (time_set==="days") {
+        let total_earnings = 0
+        let money_awaiting = 0
+        let lending_record = [] // [{"amount": 00, "time": 00}]
+        if (participation_token) {
+            lending_record.push({"amount": parseFloat(participation_token), "time": parseInt(time)})
+        }
+        for (let i=0; i<time; i++) { //loop over all days 
+            money_awaiting += (avg_amount_by_day - (avg_amount_by_day*avg_transac_fee))
+            if (money_awaiting >= min_amount) { //enough to activate FRS
+                let percentage_of_year_lended = parseInt(time-i)/365
+                let estimated_earnings = (parseFloat(money_awaiting - (money_awaiting*partner_fee)) + (parseFloat(money_awaiting - (money_awaiting*partner_fee)) * avg_lend_rate * percentage_of_year_lended))
+                estimated_earnings = estimated_earnings - (estimated_earnings*partner_fee) // remove fees
+                //flat_earning = parseFloat(money_awaiting - (money_awaiting*avg_transac_fee))
+                if (estimated_earnings > money_awaiting) { //worth staking 
+                    lending_record.push({"amount": parseFloat(money_awaiting - (money_awaiting*partner_fee)), "time": parseInt(time-i)})
+                    money_awaiting = 0
+                }
+                
+                
+            }
+        }
+        //calculate overall worth at the end of the month 
+        for (let i=0; i<lending_record.length; i++) {
+            let percentage_of_year_lended = lending_record[i].time/365
+            if (lending_record[i].time === time) { //if participation token, do not calculate fee on exit
+                let earnings = (lending_record[i].amount + (lending_record[i].amount * avg_lend_rate * percentage_of_year_lended))
+                //earnings = earnings - (earnings*partner_fee) // remove fees
+                total_earnings += earnings
+
+            } else {
+                let earnings = (lending_record[i].amount + (lending_record[i].amount * avg_lend_rate * percentage_of_year_lended))
+                earnings = earnings - (earnings*partner_fee) // remove fees
+                total_earnings += earnings
+
+            }
+            
+
+        }
+        total_earnings += money_awaiting //add money not staked 
+       // console.log("Total earnings: " + total_earnings)
+       // console.log("Total volume: " + (avg_amount_by_day*time *(max_iteration-number_of_iteration)))
+
+        let cpl_outcome = (avg_amount_by_day*time) - (avg_amount_by_day*time*cpl_flat_fee)
+        //console.log(total_earnings-cpl_outcome)
+
+        //console.log(((total_earnings-cpl_outcome)/(avg_amount_by_day*time *(max_iteration-number_of_iteration)))*100)
+        //let normal_outcome = ((avg_amount_by_day*time) - (avg_amount_by_day*time*avg_transac_fee)) //max amount of money without frs
+        
+       
+
+        /*let money_left_over = (total_earnings-(avg_amount_by_day*time))
+        console.log(money_left_over)
+        total_earnings = total_earnings-money_left_over
+        total_earnings = total_earnings-cpl_outcome*/
+
+        //let percentage_of_year_lended = parseInt(time)/365
+        //let estimated_earnings = (parseFloat(money_left_over) + (parseFloat(money_left_over * avg_lend_rate * percentage_of_year_lended)))
+        //console.log((avg_lend_rate * percentage_of_year_lended-0.002))
+
+        //cpl_outcome = cpl_outcome + (money_left_over/2)//amount that grows slower than the reinvested left overs until zero
+        let participation_reward = 0//parseFloat(((total_earnings-cpl_outcome) - ((max_iteration-number_of_iteration + 1) * first_participation )) * 0)// (210 - 208) * 0.5 = 1 to reinvest: 209
+        //let participation_reward_reinvested = parseFloat(((total_earnings-cpl_outcome) - ((max_iteration-number_of_iteration + 1) * first_participation )) * 0.7)// (210 - 208) * 0.5 = 1 to reinvest: 209
+
+        if (first_participation) {
+           
+            //console.log("merchant get paid: " + parseFloat(cpl_outcome+participation_reward))
+        
+
+            
+            //console.log("Interest generated: " + parseFloat(total_earnings-normal_outcome))
+            //console.log("Money left out: " +parseFloat((total_earnings-cpl_outcome)-participation_reward))
+        } else {
+                
+            //console.log("merchant get paid: " + parseFloat(cpl_outcome))
+        
+
+            
+            //console.log("Interest generated: " + parseFloat(total_earnings-normal_outcome))
+            //console.log("Money left out: " +parseFloat(total_earnings-cpl_outcome))
+        }
+        
+        
+        /*let half_genrated =(total_earnings-cpl_outcome) * 0.7
+        console.log(half_genrated)
+        cpl_outcome = cpl_outcome
+        let feepaid_cpl = (((avg_amount_by_day*time) - cpl_outcome) /(avg_amount_by_day*time)) * 100
+
+        let outcome_competitor = (avg_amount_by_day*time) - (avg_amount_by_day*time*competitor_fee)
+       // console.log("Iteration number: " + number_of_iteration)
+        
+        //console.log("Total earnings (competitor): " + outcome_competitor.toString())
+        //console.log("total earnings (FRS): " + total_earnings.toString())
+        console.log("merchant get paid: " + cpl_outcome.toString())
+        //console.log("Competitor generates: " + competitor_generates)
+        //console.log("FRS generates: " + (total_earnings -outcome_competitor))
+        //console.log("Fee paid with cpl: " + feepaid_cpl)
+
+        competitor_generates +=  (avg_amount_by_day*time*competitor_fee)*/
+
+        if (number_of_iteration) {
+            if (!participation_token) {
+                calculateAmountAutomaticTransfer(time, time_set, avg_amount_by_day, min_amount, number_of_iteration-1, parseFloat((total_earnings-cpl_outcome)), competitor_generates, parseFloat((total_earnings-cpl_outcome)), max_iteration, res,)
+
+            } else {
+                const data = calculateAmountAutomaticTransfer(time, time_set, avg_amount_by_day, min_amount, number_of_iteration-1, parseFloat(((total_earnings-cpl_outcome)-participation_reward)), competitor_generates, first_participation, max_iteration, res) //if 50/50
+                if (data) {
+                  return data
+
+                }
+            }   
+           
+           
+            
+            
+        } else {
+          res.json({"earnings": total_earnings, "merchant_paid": ((1- (parseFloat(cpl_outcome+participation_reward)/parseFloat(time*avg_amount_by_day))) *100), "generated": parseFloat((total_earnings-cpl_outcome)-participation_reward)})
+          return {"earnings": total_earnings, "merchant_paid": ((1- (parseFloat(cpl_outcome+participation_reward)/parseFloat(time*avg_amount_by_day))) *100), "generated": parseFloat((total_earnings-cpl_outcome)-participation_reward)}
+            //console.log(`Total money made after ${max_iteration} month: ${parseFloat((total_earnings-cpl_outcome)-participation_reward)} \n This represents ${(parseFloat((total_earnings-cpl_outcome)-participation_reward)/parseFloat(time*avg_amount_by_day*max_iteration)) *100} % of the transactions of that time period`)
+            //console.log(`The merchant paid: ${cpl_flat_fee*100} % fee at the beginning and ${(1- (parseFloat(cpl_outcome+participation_reward)/parseFloat(time*avg_amount_by_day))) *100} % at the end (- ${(cpl_flat_fee*100) -((1- (parseFloat(cpl_outcome+participation_reward)/parseFloat(time*avg_amount_by_day))) *100)} % fee) `)
+        }
+
+
+    } else if (time_set ==="weeks") {
+
+    } else if (time_set === "years") {
+
+    }
+    
+}
+
+function calculateAmountxdays(time, avg_amount_by_day, min_amount, time_period) { //receive payment x days after receiving
+
+  /**
+   * every day: x $ in volume
+   * fees: partner_fee of x - avg_transac_fee 
+   * cpl fee: 1% of x
+   * get earnings for y days - partner_fee
+   * money (no earnings or as low as possible) is transfered to merchant
+   * earnings make interest
+   * 
+   */
+
+    const avg_transac_fee = 0.0169
+    const partner_fee = 0.006
+    const avg_lend_rate = 0.07 //pull from aave
+    const cpl_flat_fee = 0.01 + avg_transac_fee // the fee that we are always keeping
+    let owed = (avg_amount_by_day - (avg_amount_by_day*cpl_flat_fee))
+
+
+    let waiting_amount = 0
+    let greater = 0
+    //let total_earnings = 0
+    let lending_record = [] // [{"amount": 00, "time": 00}]
+    //set lending record
+    /*for(let i=0; i<time_period;i++) {
+        waiting_amount+=(avg_amount_by_day - (avg_amount_by_day*avg_transac_fee))
+        //greater +=(avg_amount_by_day - (avg_amount_by_day*cpl_flat_fee))
+        
+        if (waiting_amount > min_amount) {
+          let percentage_of_year_lended = time/365
+          let estimated_earnings = (parseFloat(waiting_amount - (waiting_amount*partner_fee)) + (parseFloat(waiting_amount - (waiting_amount*partner_fee)) * avg_lend_rate * percentage_of_year_lended))
+          estimated_earnings = estimated_earnings - (estimated_earnings*partner_fee) 
+          estimated_earnings+= ((estimated_earnings-owed) * avg_lend_rate * ((time_period-i)/365))
+          if (estimated_earnings > waiting_amount) { //Make sure its worth it
+            lending_record.push({"amount": parseFloat((waiting_amount - (waiting_amount*partner_fee))), "time": parseInt(time), "time_passed": parseInt(i)})
+            waiting_amount = 0
+            //greater = 0
+           
+          }
+            
+        }
+    }
+
+    //calcute generated profits
+    //console.log(lending_record.length)
+    for (let i=0; i<lending_record.length; i++) { //
+        let percentage_of_year_lended = lending_record[i].time/365
+        let earnings = (lending_record[i].amount + (lending_record[i].amount * avg_lend_rate * percentage_of_year_lended))
+        earnings = earnings - (earnings*partner_fee)
+        earnings+= ((earnings-owed) * avg_lend_rate * ((time_period-lending_record[i].time_passed)/365)) //apply earnings on cpl generated income
+        total_earnings += earnings
+    }*/
+   /**f\left(x\right)=1-\frac{\left(\left(182500-\left(182500\cdot\left(n+v\right)\right)\right)+\left(\left(t\left(p-\left(vp\right)\right)\right)\left(1+r\right)^{\frac{x}{365}}-\left(t\left(p-\left(vp\right)\right)\right)\right)\right)}{182500} */
+    let initial_value = (avg_amount_by_day-(avg_amount_by_day*avg_transac_fee))//-((avg_amount_by_day-(avg_amount_by_day*avg_transac_fee))*partner_fee)
+    //console.log(initial_value)
+    //console.log(initial_value-(initial_value*partner_fee))
+    //console.log(parseInt(time))
+    let fullPool = parseInt(time)*(initial_value-(initial_value*partner_fee))
+    //console.log(fullPool)
+    //console.log(time_period)
+    //console.log(1+avg_lend_rate)
+    let lendingFactor = (1+avg_lend_rate)**(parseInt(time_period)/365)
+    //console.log(lendingFactor)
+    let total_earnings = fullPool*lendingFactor
+    //console.log(total_earnings)
+    total_earnings = total_earnings - (total_earnings*partner_fee)
+    total_earnings = total_earnings - (parseInt(time)*(avg_amount_by_day-(avg_amount_by_day*avg_transac_fee)))
+    //console.log(total_earnings)
+
+    //console.log("Total earnings: " + total_earnings)
+    return {"earnings": total_earnings}//, "merchant_paid": parseFloat((avg_amount_by_day*time_period)-(avg_amount_by_day*time_period*cpl_flat_fee)), "generated": (total_earnings-parseFloat((avg_amount_by_day*time_period)-(avg_amount_by_day*time_period*cpl_flat_fee)))
+    //console.log("Merchant receives: " + parseFloat((avg_amount_by_day*time_period)-(avg_amount_by_day*time_period*cpl_flat_fee)))
+    //console.log("Made " + (total_earnings-parseFloat((avg_amount_by_day*time_period)-(avg_amount_by_day*time_period*cpl_flat_fee))) + " $ over " + time_period + " days. That represents a " + ((total_earnings-parseFloat((avg_amount_by_day*time_period)-(avg_amount_by_day*time_period*cpl_flat_fee)))/(avg_amount_by_day*time_period)*100) + "% profit.")
+
+    
+
+}
+
+app.post("/calculateAlgo", (req, res) => {
+
+  if (req.body.xdays) {
+    const algo_res = calculateAmountxdays(req.body.time, req.body.avg_amount_by_day, 834, req.body.time_period) // add % redistributed
+    res.json(algo_res)
+  } else {
+    calculateAmountAutomaticTransfer(req.body.time, "days", req.body.avg_amount_by_day, 834, req.body.number_of_iteration, 0, 0, 0, req.body.number_of_iteration, res)
+    
+  }
+
+})
 // Export the app object. When executing the application local this does nothing. However,
 // to port it to AWS Lambda we will create a wrapper around that will load the app from
 // this file

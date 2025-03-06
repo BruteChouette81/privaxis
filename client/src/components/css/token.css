@@ -1,6 +1,9 @@
 
+.collapse {
+    visibility: visible;
+}
 .about {
-    padding-top: 40px;
+    padding-top: 8%;
     padding-left: 50px;
 }
 

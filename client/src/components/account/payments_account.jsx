@@ -1,5 +1,5 @@
 
-import axios from "axios"
+//import axios from "axios"
 import { useEffect, useState } from "react"
 import {
     Chart as ChartJS,
@@ -16,7 +16,7 @@ import {
 import { Line } from 'react-chartjs-2';
 import { API } from "aws-amplify";
 
-import testimg from './css/Collection-Terminal-HeroArtwork_2x.png'
+import testimg from './css/images/Collection-Terminal-HeroArtwork_2x.png'
 
 import { square_secret } from "../../apikeyStorer";
 
@@ -78,6 +78,16 @@ const AllPayments = (props) => {
 
 const AllWallet = () => {
     const [feered, setFeered] = useState(false)
+    const calculateFRS = () => {
+        API.post("server", "/calculateAlgo", {body:{
+            "xdays": true,
+            "time": 30,
+            "avg_amount_by_day": 350,
+            "time_period": 365
+        }}).then((res) => {
+            console.log(res)
+        })
+    }
     const activateFeeRed = () => {
         console.log("activated")
         setFeered(!feered)
@@ -85,9 +95,13 @@ const AllWallet = () => {
     return (<div className="payChart">
     <h2>Money in App: <strong>0</strong></h2>
     <div class="form-check form-switch">
-    <input class="form-check-input" type="checkbox" id="flexSwitchCheckChecked" onChange={()=> {activateFeeRed()}} checked={feered} disabled/>
+    <input class="form-check-input" type="checkbox" id="flexSwitchCheckChecked" onChange={()=> {activateFeeRed()}} checked={feered} />
     <label class="form-check-label" for="flexSwitchCheckChecked">Fee reduction system</label>
     </div>
+
+    {feered ? <div>
+        <button class="btn btn-primary" onClick={() => {calculateFRS()}}>Calculate FRS</button>
+    </div> : ""}
    
 </div>)
 }
@@ -122,7 +136,7 @@ const options = {
   
 const MoneyInChart = (props) => {
     const loadFromSquare = () => {
-        API.post('server', '/squareTools', {body:{"type": "sales", "key": props.key}}).then((response) => {
+        API.post('server', '/squareTools', {body:{"type": "sales", "key": props.key, "email": props.email}}).then((response) => {
             console.log(response)
             alert("Imported data from square!")
         })
@@ -301,9 +315,18 @@ function PaymentsAccount(props) {
     }
 
 
-    const CustomersLoyalty = () => {
+    const CustomersLoyalty = (props) => {
+        const loadGCFromSquare = () => {
+            API.post('server', '/squareTools', {body:{"type": "giftCards", "key": props.key}}).then((response) => {
+                console.log(response)
+                alert("Imported data from square!")
+            })
+        }
+        
+                 
         return (<div className="payChart">
             <h2>Connect your Gift Cards</h2>
+            {<button class="btn btn-primary" onClick={loadGCFromSquare}>Transfer your customers gift-cards</button>}
         </div>)
     }
 
@@ -317,7 +340,7 @@ function PaymentsAccount(props) {
     }
 
     return (
-        <div>
+        <div class="paymentaccount">
         <h1>Payments and Fees</h1>
         <button type="button" class="btn-close" aria-label="Close" onClick={() => {return_to_home()}} style={{"float":"right"}}></button>
         <div class="container">

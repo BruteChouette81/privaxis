@@ -1,7 +1,22 @@
+.selleraccount {
+    margin-top: 8%;
+    margin-bottom: 8%;
+} 
 
+.itemsaccount {
+    margin-top: 8%;
+    margin-bottom: 8%;
+}
+
+.paymentaccount {
+    margin-top: 8%;
+    margin-bottom: 8%;
+}
 
 .profile-info {
     background-color: white;
+    border-radius: 12px;
+    padding:20px;
     background-image: none;
     width: auto;
     margin:0%;
@@ -9,11 +24,20 @@
 
 .banner {
     margin: 0%;
+    margin-bottom: 25px;
+    margin-left: 25px;
+    margin-right: 25px;
+    border-radius: 15px;
 }
 
 #profile_img {
-    height: 100px;
-    width:auto;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    height: 140px;
+    width: auto;
+    border-radius: 100%;
+    border-style: solid;
 }
 
 
@@ -79,4 +103,19 @@
     background-image: none;
     width: auto;
     margin-top:20px;
+}
+
+
+#signin-img {
+    margin-left:45%;
+    height: 30px;
+    width: auto;
+}
+
+@media screen and (max-width:900px) {
+    #signin-img {
+        margin-left:5%;
+        height: 30px;
+        width: auto;
+    }
 }

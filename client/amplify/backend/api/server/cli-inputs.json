@@ -168,6 +168,27 @@
       "permissions": {
         "setting": "open"
       }
+    },
+    "/calculateAlgo": {
+      "name": "/calculateAlgo",
+      "lambdaFunction": "mylambda",
+      "permissions": {
+        "setting": "open"
+      }
+    },
+    "/oauthCallbackShopify": {
+      "name": "/oauthCallbackShopify",
+      "lambdaFunction": "mylambda",
+      "permissions": {
+        "setting": "open"
+      }
+    },
+    "/webhooksRedact": {
+      "name": "/webhooksRedact",
+      "lambdaFunction": "mylambda",
+      "permissions": {
+        "setting": "open"
+      }
     }
   }
 }

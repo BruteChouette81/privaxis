@@ -1,2 +1,0 @@
- new git command for Neovim (using coc-git)
- :CocCommand git. TAB to see all possible command 

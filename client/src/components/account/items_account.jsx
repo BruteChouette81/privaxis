@@ -1,6 +1,7 @@
 
 import {ethers} from 'ethers'
 import {useState, useEffect } from 'react';
+import {useSearchParams } from 'react-router-dom'
 import { API, Storage } from 'aws-amplify';
 import ReactLoading from "react-loading";
 import { AES, enc } from "crypto-js"
@@ -21,13 +22,15 @@ const getContract = (signer, abi, address) => {
     // get the end user
     console.log(signer)
     // get the smart contract
-    const contract = new ethers.Contract(address, abi.abi, signer);
+    const contract = new ethers.Contract(address, abi, signer);
     return contract
 }
 
 
 
 function ItemsAccount (props) {
+
+     const [searchParams, setSearchParams] = useSearchParams()
 
     const [displayItemCreator, setDisplayItemCreator] = useState(false)
 
@@ -72,6 +75,9 @@ function ItemsAccount (props) {
     const [submitLoading, setSubmitLoading] = useState(false)
     const [proof, setProof] = useState("")
     const [orderID, setOrderID] = useState(0)
+
+    const [mDebug, setMDebug] = useState(false)
+    const [last_largest, setLast_largest] = useState(0)
 
 
     const onProofChanged = (event) => {
@@ -151,6 +157,127 @@ function ItemsAccount (props) {
         })
     }
 
+    async function getPublicKey() { //fct to get public key from server
+        const response = await API.get('serverv2', '/getOracleAddr', {})
+        return response.publicKey
+    }   
+
+    const GetClientShopify = (props) => {
+        const [orders, setOrders] = useState()
+        const [poolPublicKey, setPoolPublicKey] = useState()
+
+        const loadFromShopify = async () => {
+            let poolPublicKey = await getPublicKey()
+            setPoolPublicKey(poolPublicKey)
+            API.post('server', '/oauthCallbackShopify', { body: {
+                loadByStore: true,
+                email: props.email,
+                store: props.store,
+               
+            }}).then((res) => {
+                console.log(res.orders)
+                if (res.orders.length > 0) {
+                    setOrders(res.orders)
+                } else {
+                    setOrders("No orders")
+                }
+                
+
+               
+            })
+
+        }
+
+        const IndividualOrder = (props) => {
+            const [client, setClient] = useState()
+            //const [fulfilledItems, setFulfilledItems] = useState()
+            const loadCustomerInformation = async(note) => {
+
+                let merchantPubliKey = new ethers.utils.SigningKey(props.signer.privateKey)
+                let key = merchantPubliKey.computeSharedSecret(poolPublicKey)
+    
+                setS3Config("didtransfer", "public")
+                const file = await Storage.get(`${props.signer.address.toLowerCase()}/${note.toLowerCase()}.txt`)
+                fetch(file).then((res) => res.text()).then((text) => {
+                    let res1 = AES.decrypt(text, key)
+                    const res = JSON.parse(res1.toString(enc.Utf8));
+                    setClient(res)
+                       
+                }).catch((e) => {
+                    console.log(e)
+                    
+                })
+            }
+
+            useEffect(() => {
+                if (props.note) {
+                    if (props.note.toLowerCase().includes("0x")) {
+                        loadCustomerInformation(props.note)
+                        
+                    }
+                }
+
+                /*//get all the id element of the fulfillments array into a list
+                let fulfillments = []
+                for (let i=0; i<props.fulfillments.length; i++) {
+                    fulfillments.push(props.fulfillments[i].id)
+                }
+                
+                //compare the lineItems ids to the fulfillments ids, if there is a match, save it in a list
+                let lineItems = []
+                for (let i=0; i<props.lineItems.edges.length; i++) {
+                    for (let j=0; j<fulfillments.length; j++) {
+                        if (props.lineItems.edges[i].node.id === fulfillments[j]) {
+                            lineItems.push(props.lineItems.edges[i].node)
+                        }
+                    }
+                }
+                console.log(lineItems)
+                setFulfilledItems(lineItems)*/
+               
+
+
+                
+                
+            }, [setClient])
+
+            return (
+                props.fulfillments == "FULFILLED" ? "" : props.note ? <div class="ordercard">
+                    <h6>Item name: {props.name}</h6>
+                    <h5>Fulfillment status: {props.fulfillments ? props.fulfillments : "UNFULFILLED"}</h5>
+                    <h5>Client's info</h5>
+                    <h6>First Name: {client?.first_name}</h6>
+                    <h6>Last Name: {client?.last_name}</h6>
+                    <h6>Country: {client?.address.countryCode}</h6>
+                    <h6>State: {client?.address.state}</h6>
+                    <h6>City: {client?.address.city}</h6>
+                    <h6>Street: {client?.address.addressLine1}</h6>
+                    <h6>Postal Code: {client?.address.postCode}</h6>
+                    <a class="btn btn-primary" target="_blank" href={`https://admin.shopify.com/store/${props.store.replace(".myshopify.com", '')}/orders/${props.id.replace("gid://shopify/Order/", '')}`}>Go to order</a>
+
+                </div> : ""
+            )
+        }
+
+        
+
+        useState(() => {
+            loadFromShopify()
+
+        }, [setOrders])
+
+        return (
+            <div class="row">
+                <div class="col">
+                {orders ? orders=="No orders" ? <h2>{window.localStorage.getItem("language") == "fr" ? "Aucune commande à compléter" : "No orders to complete"}</h2> :orders?.map(order => (
+                   <IndividualOrder note={order.node.note} id={order.node.id} name={order.node.name} signer={props.signer} store={props.store} fulfillments={order.node.fulfillments.pop()?.order?.displayFulfillmentStatus}/>
+                 )) : ( (<div style={{paddingLeft: 40 + "%"}}><ReactLoading type={type} color={color}
+                             height={200} width={200} /><h5>Items loading...</h5></div>) )}
+                </div>
+            </div>
+        )
+    }
+
     const GetClient = (props) => { //account, did
 
         const [numItems, setNumItems] = useState(0)
@@ -162,14 +289,17 @@ function ItemsAccount (props) {
             const [clientId, setClientId] = useState([])
 
             const getClientInfo = async() => {
-                console.log(props.signer)
+                console.log(props.orderid)
                 console.log("activated")
-                let key = await dds.getClientInfos(props.orderid - 1, props.orderid) //itemID, order ID or let keyid = ... keyid[0], keyid[1], keyid[0]
+                const item = await dds?.items(props.orderid)
+                console.log(item)
+
+                let key = await dds.getClientInfos(props.orderid, props.orderid+1) //itemID, order ID or let keyid = ... keyid[0], keyid[1], keyid[0]
                 //console.log(key)
-                const item = await dds?.items(props.orderid - 1)
+                
                 //console.log(item.tokenId)
                 
-                const nft = getContract( props.signer, realabi, item.nft)
+                const nft = getContract(props.signer, realabi.abi, item.nft)
                 //console.log(nft)
 
                 const buyer_address = await nft.ownerOf(parseInt(item.tokenId))
@@ -209,7 +339,7 @@ function ItemsAccount (props) {
                 </div> ) : (
                 <div class="ordercard" >
                     <h6>Item Name: {props.name}</h6>
-                    <h6>Order ID: {props.orderid}</h6>
+                    <h6>Order ID: {props.orderid+1}</h6>
                     <br />
                     <br />
                     <button class="btn btn-primary" onClick={getClientInfo} >Get Client Information</button>
@@ -326,6 +456,7 @@ function ItemsAccount (props) {
 
 
     const createReal = async(event) => {
+        console.log(props)
         event.preventDefault();
         if (nftname !== ""  && description !== "" && image_file !== null && tag !== "" && itemDays !== 0 && itemPrice !== 0) {
             //function to poat item to ipfs
@@ -434,6 +565,9 @@ function ItemsAccount (props) {
                 console.log("https://ipfs.io/ipfs/" + cid)
                 //mint using oracle
                 try {
+                    if (mDebug) {
+
+                    
                         //console.log(test.test.test)
                         console.log(itemPrice - itemFee)
                         //await mintReal(props.account, "https://ipfs.io/ipfs/" + cid, props.signer)
@@ -443,8 +577,8 @@ function ItemsAccount (props) {
                                 uri: "https://ipfs.io/ipfs/" + cid,
                                 MaxPrice: (itemPrice - itemFee).toFixed(2), //Minimum price for item without fees
                                 numDays: parseInt(itemDays),
-                                mintingAddress: "0x666f393A06285c3Ec10895D4092d9Dc86aeFD45b",
-                                ddsAddress: "0xa244B3e1e6Bd2ccf1D226F3E269D0Af88Ef86CEE",
+                                mintingAddress: props.contracts.minting, //"0x666f393A06285c3Ec10895D4092d9Dc86aeFD45b"
+                                ddsAddress: props.contracts.dds,//"0xa244B3e1e6Bd2ccf1D226F3E269D0Af88Ef86CEE"
                             }
                             
                         }
@@ -488,8 +622,40 @@ function ItemsAccount (props) {
                             alert("Error while creating the Item... check console for more. Error code: 10")
                             console.log(e)
                         })
+                    
+                    } else {
 
-            } catch(e) {
+
+                        //get last ID
+                            var data = {
+                                body: {
+                                    address: window.localStorage.getItem("walletAddress").toLowerCase(),
+                                    itemid: parseInt(last_largest+1), //market item id
+                                    name: nftname, //get the name in the form
+                                    score: score, //quantitie tracker
+                                    tag: tag, //"real" 
+                                    price: parseInt((itemPrice - itemFee).toFixed(2)*100000), 
+                                    description: description,
+                                    image: "https://ipfs.io/ipfs/" + cid
+                                }
+                            }
+                
+                            var url = "/listItem"
+                
+                            API.post('serverv2', url, data).then((response) => {
+                                console.log(response)
+                                setCreateLoading(false)
+                                alert("Your Item is Created and Listed")
+                                setItemLink(["/item/" +  data.body.itemid])
+                            })
+                            }
+                            
+                           
+                        
+
+                    }
+
+            catch(e) {
                 setCreateLoading(false)
                 alert("Unable to create, check console for more informations");
                 console.log(e)
@@ -765,14 +931,29 @@ function ItemsAccount (props) {
             var url = "/getItems"
             API.post('serverv2',  url, data).then((response) => {
                 console.log(response)
-                setNumRealItems({
-                    "names": response.names,
-                    "descriptions": response.descriptions,
-                    "images": response.image,
-                    "ids": response.ids,
-                    "prices": response.prices,
-                    "scores": response.scores
-                })
+                if (response.names) {
+                    var largest =  0;
+
+                    for (var i = 0; i < response.ids.length; i++) {
+                    if (response.ids[i] > largest ) {
+                        largest = response.ids[i];
+                    }
+                    }
+                    console.log(largest)
+                    setLast_largest(largest)
+                    setNumRealItems({
+                        "names": response.names,
+                        "descriptions": response.descriptions,
+                        "images": response.image,
+                        "ids": response.ids,
+                        "prices": response.prices,
+                        "scores": response.scores
+                    })
+                } else {
+                    setNumRealItems("no items")
+                }
+                
+               
             })
         }
 
@@ -789,17 +970,34 @@ function ItemsAccount (props) {
                 <input class="form-control me-2" type="search" placeholder="Search" aria-label="Search" onChange={onSearchChange}/>
                 <button class="btn btn-outline-success" type="submit">Search</button>
             </form>
-                {numRealItems ? Array.from({ length: numRealItems?.ids?.length }, (_, k) => search ? numRealItems?.names[k].toLowerCase().includes(search) ?(<BasicLoadItem id={parseInt(numRealItems?.ids[k])} device_id={props.device_id} score={numRealItems?.scores[k]} price={parseFloat((numRealItems?.prices[k]/100000) / (1 - 0.029) + 4.6).toFixed(2)} name={numRealItems?.names[k]} description={numRealItems?.descriptions[k]} image={numRealItems?.images[k]} />  ) : "" : (<BasicLoadItem id={parseInt(numRealItems?.ids[k])} score={numRealItems?.scores[k]} device_id={props.device_id} price={parseFloat((numRealItems?.prices[k]/100000) / (1 - 0.029) + 4.6).toFixed(2)} name={numRealItems?.names[k]} description={numRealItems?.descriptions[k]} image={numRealItems?.images[k]} />  )) : <div style={{paddingLeft: 40 + "%"}}><ReactLoading type={type} color={color}
+                {numRealItems ? numRealItems=== "no items" ? <h3>No Items, create some by importing them from Square or by manually entering them</h3> : Array.from({ length: numRealItems?.ids?.length }, (_, k) => search ? numRealItems?.names[k].toLowerCase().includes(search) ?(<BasicLoadItem id={parseInt(numRealItems?.ids[k])} device_id={props.device_id} score={numRealItems?.scores[k]} price={parseFloat((numRealItems?.prices[k]/100000) / (1 - 0.029) + 4.6).toFixed(2)} name={numRealItems?.names[k]} description={numRealItems?.descriptions[k]} image={numRealItems?.images[k]} />  ) : "" : (<BasicLoadItem id={parseInt(numRealItems?.ids[k])} score={numRealItems?.scores[k]} device_id={props.device_id} price={parseFloat((numRealItems?.prices[k]/100000) / (1 - 0.029) + 4.6).toFixed(2)} name={numRealItems?.names[k]} description={numRealItems?.descriptions[k]} image={numRealItems?.images[k]} />  )) : <div style={{paddingLeft: 40 + "%"}}><ReactLoading type={type} color={color}
             height={200} width={200} /><h5>Account loading...</h5></div>}
             </div>
         )
     }
 
+    const TransferFromSquare = () => {
+        API.post('server', '/squareTools', {body:{"type": "items", "key": props.key, "address": props.signer.address}}).then((response) => {
+            console.log(response)
+            alert("Transfered Items from Square!")
+        })
+    }
+
     useEffect(() => {
+        if(searchParams.get("admin")) { //shopify pluggin
+            console.log(props.tier)
+        } else {
+            console.log(props)
             const contract = getContract(props.signer, DDSABI, props.contracts.dds)
             setdds(contract)
+        }
+            
         
     }, [setdds])
+    const activateMDebug = () => {
+        setMDebug(!mDebug)
+    }
+
 
     const return_to_home = () => {
         props.setDisplay(false)
@@ -823,10 +1021,21 @@ function ItemsAccount (props) {
                                 
                                 <br /> <br />
                                 {Array(numAttribute).fill(true).map((_, i) =><div key={i}> <input class="form-control" id={i} type="text" onChange={onAddedKey} placeholder={`key ${i}`}/> <input class="form-control" type="text" id={i} onChange={onAddedValue} placeholder={`value ${i}`}/> <br /> <input type="button" class="btn btn-danger" value="Remove" onClick={onRemoveAttribute}/> <br /> <br /></div>)}
-                            </div> <input type="submit" class="btn btn-warning" value="add" />*/
+                            </div> <input type="submit" class="btn btn-warning" value="add" />
+                             <button class="btn btn-primary" onClick={() => {displayProoverForm()}}>{window.localStorage.getItem("language") == "fr" ? "Voir les commandes" : "See orders"}</button>*/
     return(
         <div class="itemsaccount">
             <button type="button" class="btn-close" aria-label="Close" onClick={() => {return_to_home()}} style={{"float":"right"}}></button>
+            {searchParams.get("admin") ?
+            <div>
+                <h1>{window.localStorage.getItem("language") == "fr" ? "Commande en ligne à compléter" : "Orders to complete"}</h1>
+                       
+                        { submitLoading ? (<div style={{paddingLeft: 25 + "%"}}><ReactLoading type={type} color={color}
+        height={200} width={200} /><h5>{step} loading...</h5></div>) :(
+                            <div>
+                                <GetClientShopify store={props.store} email={props.email} signer={props.signer}/>
+                                </div>)}
+            </div> :
              <div class="container">
                 <div class="row">
                     <div class="col">
@@ -861,8 +1070,17 @@ function ItemsAccount (props) {
                                 <label for="floatingSelect">Tag</label>
                             </div>
                             <br />
+                            <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="flexSwitchCheckChecked" onChange={()=> {activateMDebug()}} checked={mDebug} />
+                            <label class="form-check-label" for="flexSwitchCheckChecked">Minting debug</label>
+                            </div>
+
+                            <br />
                           
                             <input type="submit" class="btn btn-primary" value="Submit" /> 
+                            <br />
+                            <br />
+                            <button class="btn btn-dark" onClick={TransferFromSquare}>Transfer your items from Square</button>
                                                             
                         </form>) : ""}
                         
@@ -890,7 +1108,7 @@ function ItemsAccount (props) {
                         {displayItemCreator || displayProover ? "" : <DisplayAllItems device_id={props.device_id} /> }
 
                 </div>
-            </div>
+            </div>}
            
         </div>
     )

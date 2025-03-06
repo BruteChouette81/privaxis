@@ -275,3 +275,221 @@ async function createGiftCard(type, amount, gan) {
         throw error;
     }
 }
+
+
+
+//shopify migration: 
+
+//items
+//https://shopify.dev/docs/api/admin-graphql/2024-10/queries/products?language=cURL
+// Shopify credentials
+const SHOPIFY_STORE_URL = 'your-store-name.myshopify.com';
+const SHOPIFY_ACCESS_TOKEN = 'your-access-token';
+
+// Base URL for Shopify API
+const SHOPIFY_API_URL = `https://${SHOPIFY_STORE_URL}/admin/api/2023-10/products.json`;
+
+// Function to fetch products from Shopify
+async function fetchProducts() {
+    try {
+        const response = await axios.get(SHOPIFY_API_URL, {
+            headers: {
+                'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN
+            }
+        });
+        return response.data.products;
+    } catch (error) {
+        console.error('Error fetching products:', error.message);
+        return [];
+    }
+}
+
+// Main function to fetch products and save their images
+async function saveProductImages() {
+    let names = [];
+  let descriptions = [];
+  let categories = [];
+  let categoryIndex = {};
+  let prices = [];
+  let scores = [];
+  let responses = [];
+    const products = await fetchProducts();
+
+    for (const product of products) {
+        console.log(`Processing product: ${product.title}`);
+        const image = product.media.nodes.preview.image.url; //use media.first
+
+        const response = await nfetch(image, { responseType: 'arraybuffer' });
+              
+        const ipfsHash = await listNewImage(response.data, '');
+        const name = product.title
+        const score = product.totalInventory
+        const description = product.description
+        const category = product.tags[0]
+        const price = product.priceRangeV2.maxVariantPrice.amount;
+        const fee = parseFloat((price * 0.029 + 4.6).toFixed(2));
+
+        if (!last_id) {
+        //pull the last id
+        }
+
+        /* const mintUrl = 'https://f5auzuxklj.execute-api.ca-central-1.amazonaws.com/dev/oracleMint';
+        const body1 = {
+            address: address,
+            uri: `https://ipfs.io/ipfs/${ipfsHash.IpfsHash}`,
+            MaxPrice: parseFloat((price - fee).toFixed(2)),
+            numDays: 10,
+            mintingAddress: "0x666f393A06285c3Ec10895D4092d9Dc86aeFD45b",
+            ddsAddress: "0xa244B3e1e6Bd2ccf1D226F3E269D0Af88Ef86CEE",
+        };
+
+        const responseMint = await nfetch(mintUrl, {body:body1});
+        const mintData = responseMint.data;*/
+
+        const cloudUrl = 'https://f5auzuxklj.execute-api.ca-central-1.amazonaws.com/dev/listItem';
+        const body2 = {
+            address: address,
+            itemid: parseInt(mintData.hex, 16),
+            name: name,
+            score: score,
+            tag: category,
+            price: parseInt((price - fee).toFixed(2) * 100000),
+            description: description,
+            image: `https://ipfs.io/ipfs/${ipfsHash.IpfsHash}`,
+        };
+
+        const responseCloud = await nfetch(cloudUrl, {body:body2});
+        responses.push(responseCloud.data);
+    }
+
+    console.log('All images have been downloaded.');
+}
+
+//sales
+
+// Base URL for Shopify Orders API
+const SHOPIFY_ORDERS_URL = `https://${SHOPIFY_STORE_URL}/admin/api/2023-10/orders.json`;
+
+// Function to fetch orders from Shopify
+async function fetchOrders(email) {
+    try {
+        let dataLastYear = Array(12).fill(0);
+        let moneyLastYear = Array(12).fill(0);
+        const response = await axios.get(SHOPIFY_ORDERS_URL, {
+            headers: {
+                'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN
+            },
+            params: {
+                status: 'any', // Fetch orders with any status (open, closed, or cancelled)
+                limit: 250     // Fetch up to 250 orders per request (API maximum)
+            }
+        });
+
+        response.data.orders.forEach(sale => {
+            const date = DateTime.fromISO(sale.closed_at);
+            const month = date.month;
+            dataLastYear[month - 1] += 1;
+            moneyLastYear[month - 1] += sale.currentTotalPriceSet.presentmentMoney.amount;
+        });
+        dataLastYear = response.data.orders
+        const transferparams = {
+            TableName: "partnerlogin",
+            Key: {
+              email: email,
+            },
+            ExpressionAttributeNames: { '#td': 'transfer_data' },
+            ExpressionAttributeValues: {},
+            ReturnValues: 'UPDATED_NEW',
+          };
+          payparams.UpdateExpression = 'SET '
+          payparams.ExpressionAttributeValues[':transferData'] = [dataLastYear, moneyLastYear];
+          payparams.UpdateExpression += '#td = :transferData'
+      
+          dynamodb.update(transferparams, (error, result) => {
+              if (error) {
+                console.log(error.message);
+                res.json({error: error.message, params: transferparams})
+              }
+              else {
+                res.send("done")
+              }
+          });
+  
+        return { dataLastYear, moneyLastYear };
+    
+      
+    } catch (error) {
+        console.error('Error fetching orders:', error.message);
+        return [];
+    }
+}
+
+//gift cards
+
+// Base URL for Shopify Gift Cards API
+const SHOPIFY_GIFT_CARDS_URL = `https://${SHOPIFY_STORE_URL}/admin/api/2023-10/gift_cards.json`;
+
+// Function to fetch gift cards from Shopify
+async function fetchGiftCards() {
+    try {
+        const response = await axios.get(SHOPIFY_GIFT_CARDS_URL, {
+            headers: {
+                'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN
+            },
+            params: {
+                limit: 250, // Fetch up to 250 gift cards per request
+                status: 'enabled' // Fetch only enabled gift cards (optional)
+            }
+        });
+        return response.data.gift_cards;
+    } catch (error) {
+        console.error('Error fetching gift cards:', error.message);
+        return [];
+    }
+}
+
+const NEW_SHOPIFY_STORE_URL = 'new-store-name.myshopify.com';
+const NEW_SHOPIFY_ACCESS_TOKEN = 'new-access-token';
+
+// Base URL for Shopify Gift Cards API
+const SHOPIFY_GIFT_CARD_CREATE_URL = `https://${NEW_SHOPIFY_STORE_URL}/admin/api/2023-10/gift_cards.json`;
+
+// Function to create a gift card
+async function createGiftCard(giftCardData) {
+    try {
+        const response = await axios.post(
+            SHOPIFY_GIFT_CARD_CREATE_URL,
+            {
+                gift_card: {
+                    initial_value: giftCardData.initial_value,
+                    balance: giftCardData.balance,
+                    note: giftCardData.note || `Migrated from old account`,
+                    expires_on: giftCardData.expires_on || null
+                }
+            },
+            {
+                headers: {
+                    'X-Shopify-Access-Token': NEW_SHOPIFY_ACCESS_TOKEN,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        console.log(`Gift card created with ID: ${response.data.gift_card.id}`);
+    } catch (error) {
+        console.error(`Error creating gift card: ${giftCardData.id}`, error.message);
+    }
+}
+
+
+async function migrateGiftCard() {
+    const gift_cards = await fetchGiftCards()
+    for (const gift_card in gift_cards) {
+        const amount = gift_card.balance
+        const gan = gift_card.customer.email
+
+        createGiftCard(amount, gan)
+
+        
+    }
+}

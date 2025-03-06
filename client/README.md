@@ -1,29 +1,25 @@
 
-# CPL technologies
-![Logo](https://www.imperialdao.net/static/media/cpl_logo2.c51e374d32f813e2fca5.png)
+# Privaxis - Decentralized Cybersecurity for E-commerce
+![Logo](https://https://privaxis.ca/static/media/logo2.127b32517d879dbb3569.png)
 
-The CPL technologies are a collection of decentralized system that allow a better way of making online transactions
+## 🚀 Features
 
+- **Hosted Checkout** – Uses a hosted checkout to increase security and reduce costs.
+- **Data Protection & E2E Encryption** – Using crypto account for end-to-end encryption, Privaxis ensures sensitive data is secured and third party can't access it.
+- **Access Control & Authentication** – Use of decentralized authentication mechanisms (like the proof of merchant) to allow a better control of who can access private information.
+- **Compliance Support** – Helps merchants adhere to regulatory requirements like PCI-DSS and GDPR.
+- **Seamless Integration** – Works effortlessly with Shopify, Square, and other e-commerce platforms.
 
+## 🛠️ Installation
 
+Privaxis is currently in development. Stay tuned for installation and setup instructions.
 
-## Technologies
+## 🌐 Supported Platforms
 
-We developed a lot of different technologies in order to make our idea work. First of all, we designed a new market system called DDS (Decentralized Delevery System), which allows real world items to be sold as NFTs while being delivered in real life. Second, we built an Account system (DID) that allow user to be a 100% protected and private. Also, we had to develop our own type of NFTs in order to be able to sell real Items as digital ones. Finaly, we created an new type of AMM that we called CPL. This AMM can handle centralized transaction, manage smart contract, lower gas prices (in blockchain communication) and structure pools for the contribution system.
+- Shopify
+- Square
+- Custom websites
 
+## 📩 Contact
 
-## Tree
-
-To access all of the technologies discuss in the previous paragraph, go under the Contract folder:
-
-client/Contract | 
-          
-          -> DDS.sol (Decentralized Delevery System)
-          -> RNFT.sol (Real Item Nfts)
-          -> accounts.js (DID account)
-          -> AM2.sol
-          -> AM2.js      
-
-to access the website go under the src folder:
-
-client/src
+For inquiries, partnerships, or support, reach out to us at **about@cpltechnologies.com** or visit our website **[Privaxis.com](https://privaxis.com/contact)**.
